@@ -1,7 +1,7 @@
 "use client";
 
 import CreateAPIKeyModal from "@/components/CreateAPIKeyModal";
-import { get RustAcademyApiBase } from "@/lib/api";
+import { getRustAcademyApiBase } from "@/lib/api";
 import {
   type ApiKey,
   type NewKeyForm,
@@ -20,7 +20,7 @@ type UsageSummary = {
 // ---------------------------------------------------------------------------
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${get RustAcademyApiBase()}${path}`, {
+  const res = await fetch(`${getRustAcademyApiBase()}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });

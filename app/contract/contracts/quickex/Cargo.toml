@@ -1,5 +1,5 @@
 [package]
-name = " RustAcademy"
+name = "quickex"
 version = "0.1.0"
 edition = "2021"
 description = "X-Ray privacy Soroban contract for  RustAcademy"
@@ -18,21 +18,4 @@ soroban-sdk = "23"
 soroban-sdk = { version = "23", features = ["testutils"] }
 proptest = { version = "1.5.0", default-features = false, features = ["std"] }
 
-[profile.release]
-opt-level = "z"
-overflow-checks = true
-debug = 0
-strip = "symbols"
-debug-assertions = false
-panic = "abort"
-codegen-units = 1
-lto = true
-
-[profile.release-with-logs]
-inherits = "release"
-opt-level = 1
-
-[profile.test]
-opt-level = 0
-debug = true
 

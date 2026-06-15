@@ -18,7 +18,7 @@ export class IngestionBootstrapService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    const contractId = process.env[" RustAcademy_CONTRACT_ID"];
+    const contractId = process.env["RustAcademy_CONTRACT_ID"];
 
     if (!contractId) {
       this.logger.warn(

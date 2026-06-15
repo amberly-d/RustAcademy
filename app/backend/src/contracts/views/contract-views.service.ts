@@ -155,8 +155,8 @@ export class ContractViewsService {
     // When  RustAcademy_CONTRACT_ID is not set (e.g. local dev) we return safe
     // defaults so the frontend can still render.
     const contractId =
-      this.configService.get<string>(" RustAcademy_CONTRACT_ID") ??
-      process.env[" RustAcademy_CONTRACT_ID"];
+      this.configService.get<string>("RustAcademy_CONTRACT_ID") ??
+      process.env["RustAcademy_CONTRACT_ID"];
 
     if (!contractId) {
       this.logger.warn(
@@ -182,8 +182,8 @@ export class ContractViewsService {
 
   private async fetchPauseState(): Promise<PauseStateView> {
     const contractId =
-      this.configService.get<string>(" RustAcademy_CONTRACT_ID") ??
-      process.env[" RustAcademy_CONTRACT_ID"];
+      this.configService.get<string>("RustAcademy_CONTRACT_ID") ??
+      process.env["RustAcademy_CONTRACT_ID"];
 
     if (!contractId) {
       return { paused: false, pausedAtLedger: null };
@@ -211,8 +211,8 @@ export class ContractViewsService {
     }>("stellar");
 
     const contractId =
-      this.configService.get<string>(" RustAcademy_CONTRACT_ID") ??
-      process.env[" RustAcademy_CONTRACT_ID"] ??
+      this.configService.get<string>("RustAcademy_CONTRACT_ID") ??
+      process.env["RustAcademy_CONTRACT_ID"] ??
       "";
 
     // Static fields we can derive without an RPC call
@@ -526,8 +526,8 @@ export class ContractViewsService {
 
   private requireContractId(): string {
     const id =
-      this.configService.get<string>(" RustAcademy_CONTRACT_ID") ??
-      process.env[" RustAcademy_CONTRACT_ID"];
+      this.configService.get<string>("RustAcademy_CONTRACT_ID") ??
+      process.env["RustAcademy_CONTRACT_ID"];
     if (!id) {
       throw new NotFoundException({
         error: "CONTRACT_NOT_CONFIGURED",

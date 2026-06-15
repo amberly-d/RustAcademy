@@ -1,5 +1,5 @@
 import i18n from "i18next";
-import { get RustAcademyApiBase } from "@/lib/api";
+import { getRustAcademyApiBase } from "@/lib/api";
 
 export type DateRange = "24h" | "7d" | "30d" | "all";
 
@@ -114,7 +114,7 @@ function resolveAnalyticsPublicKey(): string {
     }
   }
 
-  const fromEnv = process.env.NEXT_PUBLIC_ RustAcademy_ANALYTICS_PUBLIC_KEY?.trim();
+  const fromEnv = process.env.NEXT_PUBLIC_RustAcademy_ANALYTICS_PUBLIC_KEY?.trim();
   if (fromEnv && PUBLIC_KEY_REGEX.test(fromEnv)) {
     return fromEnv;
   }
@@ -204,7 +204,7 @@ export async function fetchAnalytics(range: DateRange): Promise<AnalyticsData> {
 
   const publicKey = resolveAnalyticsPublicKey();
   const { startDate, endDate, interval } = rangeToWindow(range);
-  const url = new URL(`${get RustAcademyApiBase()}/analytics/report`);
+  const url = new URL(`${getRustAcademyApiBase()}/analytics/report`);
   url.searchParams.set("publicKey", publicKey);
   url.searchParams.set("startDate", startDate);
   url.searchParams.set("endDate", endDate);
@@ -234,7 +234,7 @@ export async function exportAnalyticsReport(
 ): Promise<void> {
   const publicKey = resolveAnalyticsPublicKey();
   const { startDate, endDate, interval } = rangeToWindow(range);
-  const url = new URL(`${get RustAcademyApiBase()}/analytics/export`);
+  const url = new URL(`${getRustAcademyApiBase()}/analytics/export`);
   url.searchParams.set("publicKey", publicKey);
   url.searchParams.set("startDate", startDate);
   url.searchParams.set("endDate", endDate);

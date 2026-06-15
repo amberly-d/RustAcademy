@@ -203,7 +203,7 @@ export class AppConfigService {
    *  RustAcademy Soroban contract id (optional). Used for ingestion and soroban preflight.
    */
   get RustAcademyContractId(): string | undefined {
-    return this.configService.get(" RustAcademy_CONTRACT_ID", { infer: true });
+    return this.configService.get("RustAcademy_CONTRACT_ID", { infer: true });
   }
 
   /**

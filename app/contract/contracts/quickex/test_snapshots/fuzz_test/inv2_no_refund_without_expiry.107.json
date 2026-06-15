@@ -39,7 +39,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "i128": "304167152"
+                  "i128": "609809975"
                 }
               ]
             }
@@ -61,13 +61,13 @@
                   "address": "CD3FXVGYSLQFFTW3UH6WFF2OKZH7VERGZJZAMJHTGHBWO4F6URWEJL23"
                 },
                 {
-                  "i128": "304167152"
+                  "i128": "609809975"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
                 },
                 {
-                  "bytes": "113f5f13be6f93ce92a1a4ba46f9e00f8631266a22da3ea88fc169c9dc7baf10"
+                  "bytes": "ebcc06876deb58666be00e1f3d5bed76927f6dec48389f327fce9cad2abedb94"
                 },
                 {
                   "u64": "0"
@@ -90,7 +90,7 @@
                       "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                     },
                     {
-                      "i128": "304167152"
+                      "i128": "609809975"
                     }
                   ]
                 }
@@ -106,7 +106,7 @@
   "ledger": {
     "protocol_version": 23,
     "sequence_number": 0,
-    "timestamp": 74916,
+    "timestamp": 71326,
     "network_id": "0000000000000000000000000000000000000000000000000000000000000000",
     "base_reserve": 0,
     "min_persistent_entry_ttl": 4096,
@@ -262,7 +262,7 @@
                   "symbol": "Escrow"
                 },
                 {
-                  "bytes": "136d9554555e6f8f91dc37bfe83e0740880000103c6778b5d37418f5c74f0518"
+                  "bytes": "06be60d59971112459b84976add9cc90a2660664aae5e8e30c2814af789614f6"
                 }
               ]
             },
@@ -282,7 +282,7 @@
                       "symbol": "Escrow"
                     },
                     {
-                      "bytes": "136d9554555e6f8f91dc37bfe83e0740880000103c6778b5d37418f5c74f0518"
+                      "bytes": "06be60d59971112459b84976add9cc90a2660664aae5e8e30c2814af789614f6"
                     }
                   ]
                 },
@@ -294,7 +294,7 @@
                         "symbol": "amount_due"
                       },
                       "val": {
-                        "i128": "304167152"
+                        "i128": "609809975"
                       }
                     },
                     {
@@ -302,7 +302,7 @@
                         "symbol": "amount_paid"
                       },
                       "val": {
-                        "i128": "304167152"
+                        "i128": "609809975"
                       }
                     },
                     {
@@ -390,7 +390,7 @@
                   "symbol": "EscrowIdMap"
                 },
                 {
-                  "bytes": "4ad9a5686d18c1befa470a2b1d3f1044e5d7d1f6600907df18126096bbaab761"
+                  "bytes": "f9a05ebba522583bfa38c7928eeef95c1b16756702f39707c906fca4eb80247f"
                 }
               ]
             },
@@ -410,13 +410,13 @@
                       "symbol": "EscrowIdMap"
                     },
                     {
-                      "bytes": "4ad9a5686d18c1befa470a2b1d3f1044e5d7d1f6600907df18126096bbaab761"
+                      "bytes": "f9a05ebba522583bfa38c7928eeef95c1b16756702f39707c906fca4eb80247f"
                     }
                   ]
                 },
                 "durability": "persistent",
                 "val": {
-                  "bytes": "136d9554555e6f8f91dc37bfe83e0740880000103c6778b5d37418f5c74f0518"
+                  "bytes": "06be60d59971112459b84976add9cc90a2660664aae5e8e30c2814af789614f6"
                 }
               }
             },
@@ -731,7 +731,7 @@
                         "symbol": "amount"
                       },
                       "val": {
-                        "i128": "304167152"
+                        "i128": "609809975"
                       }
                     },
                     {

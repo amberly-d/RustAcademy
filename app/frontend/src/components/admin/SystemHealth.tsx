@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, DatabaseZap, ShieldAlert } from "lucide-react";
 
-import { get RustAcademyApiBase } from "@/lib/api";
+import { getRustAcademyApiBase } from "@/lib/api";
 
 type HealthResponse = {
   status: string;
@@ -17,7 +17,7 @@ type FlagHealthResponse = {
 };
 
 export function SystemHealth() {
-  const apiBase = useMemo(() => get RustAcademyApiBase(), []);
+  const apiBase = useMemo(() => getRustAcademyApiBase(), []);
   const [apiStatus, setApiStatus] = useState("Checking");
   const [uptime, setUptime] = useState("--");
   const [flagStore, setFlagStore] = useState("Checking");

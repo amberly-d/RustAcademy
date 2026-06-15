@@ -95,10 +95,10 @@ fn test_emergency_mode_blocks_risky_entry_points_and_allows_safe_paths() {
 }
 
 #[contract]
-pub struct Legacy RustAcademyContract;
+pub struct LegacyRustAcademyContract;
 
 #[contractimpl]
-impl Legacy RustAcademyContract {
+impl LegacyRustAcademyContract {
     pub fn initialize(env: Env, admin: Address) -> Result<(),  RustAcademyError> {
         if crate::storage::get_admin(&env).is_some() {
             return Err( RustAcademyError::AlreadyInitialized);
@@ -1762,8 +1762,8 @@ fn test_upgrade_migration_preserves_legacy_escrow_data() {
     let env = Env::default();
     env.mock_all_auths();
 
-    let contract_id = env.register(Legacy RustAcademyContract, ());
-    let legacy_client = Legacy RustAcademyContractClient::new(&env, &contract_id);
+    let contract_id = env.register(LegacyRustAcademyContract, ());
+    let legacy_client = LegacyRustAcademyContractClient::new(&env, &contract_id);
 
     let admin = Address::generate(&env);
     let owner = Address::generate(&env);

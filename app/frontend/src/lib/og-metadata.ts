@@ -16,7 +16,7 @@ export const SITE_DESCRIPTION = "Privacy-focused payments on Stellar";
 export function getSiteUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-    process.env.NEXT_PUBLIC_ RustAcademy_API_URL?.replace(/\/$/, "").replace(
+    process.env.NEXT_PUBLIC_RustAcademy_API_URL?.replace(/\/$/, "").replace(
       /:4000$/,
       ":3000",
     ) ||
@@ -50,8 +50,8 @@ export async function fetchPaymentMeta(params: {
 }): Promise<SafePaymentMeta | null> {
   try {
     const apiBase =
-      process.env. RustAcademy_INTERNAL_API_URL?.replace(/\/$/, "") ||
-      process.env.NEXT_PUBLIC_ RustAcademy_API_URL?.replace(/\/$/, "") ||
+      process.env.RustAcademy_INTERNAL_API_URL?.replace(/\/$/, "") ||
+      process.env.NEXT_PUBLIC_RustAcademy_API_URL?.replace(/\/$/, "") ||
       "http://localhost:4000";
 
     const qs = new URLSearchParams({ username: params.username, amount: params.amount });

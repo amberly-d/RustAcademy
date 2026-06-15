@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Search, ShieldCheck } from "lucide-react";
 
-import { get RustAcademyApiBase } from "@/lib/api";
+import { getRustAcademyApiBase } from "@/lib/api";
 
 type Flag = {
   key: string;
@@ -24,7 +24,7 @@ type FlagsResponse = {
 };
 
 export function FeatureFlags() {
-  const apiBase = useMemo(() => get RustAcademyApiBase(), []);
+  const apiBase = useMemo(() => getRustAcademyApiBase(), []);
   const [flags, setFlags] = useState<Flag[]>([]);
   const [search, setSearch] = useState("");
   const [source, setSource] = useState("cache");

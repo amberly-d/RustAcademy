@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Filter } from "lucide-react";
 
-import { get RustAcademyApiBase } from "@/lib/api";
+import { getRustAcademyApiBase } from "@/lib/api";
 
 type AuditLog = {
   id: string;
@@ -19,7 +19,7 @@ type AuditResponse = {
 };
 
 export function AuditLogs() {
-  const apiBase = useMemo(() => get RustAcademyApiBase(), []);
+  const apiBase = useMemo(() => getRustAcademyApiBase(), []);
   const [filter, setFilter] = useState("ALL");
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [error, setError] = useState<string | null>(null);

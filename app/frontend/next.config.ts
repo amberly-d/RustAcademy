@@ -57,7 +57,7 @@ const nextConfig: NextConfig = {
   // Environment-specific configuration
   env: {
     // Ensure all API URLs use HTTPS in production
-    NEXT_PUBLIC_ RustAcademy_API_URL: process.env.NEXT_PUBLIC_ RustAcademy_API_URL,
+    NEXT_PUBLIC_RustAcademy_API_URL: process.env.NEXT_PUBLIC_RustAcademy_API_URL,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK,
   },
