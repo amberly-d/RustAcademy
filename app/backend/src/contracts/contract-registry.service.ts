@@ -2,7 +2,7 @@ import {
   BadRequestException,
   Injectable,
   Logger,
-  NotFoundException,
+  // NotFoundException,
 } from "@nestjs/common";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 
@@ -104,7 +104,7 @@ export class ContractRegistryService {
     this.validateContractSet(dto.contracts);
 
     const current = await this.readRecords();
-    let nextVersion = current.reduce(
+    const currentVersion = current.reduce(
       (max, record) => Math.max(max, record.version),
       this.fallbackVersion,
     );
@@ -119,196 +119,263 @@ export class ContractRegistryService {
         : record,
     );
 
-    const published: RegistryRecord[] = dto.contracts.map((contract) => {
-      nextVersion += 1;
-      return this.toRecord(contract, dto, actor, nextVersion, now);
-    });
+    const published: RegistryRecord[] = dto.contracts.map((contract) =>
+      this.toRecord(contract, dto, actor, 0, now),
+    );
 
     const merged = [...retained, ...published];
-    this.fallbackVersion = nextVersion;
-    this.writeFallback(merged);
-    await this.persistSnapshot(merged);
-    await this.auditService.log(
-      "contract_registry",
-      "registry.publish",
-      dto.deploymentId,
-      {
-        actor,
-        version: nextVersion,
-        contracts: published.map((record) => ({
+
+    try {
+      const client = this.supabaseService.getClient();
+      const { data, error } = await client.rpc("publish_contract_registry", {
+        p_network: this.configService.network,
+        p_records: published.map((record) => ({
           name: record.name,
           contractId: record.contractId,
+          previousContractId: record.previousContractId ?? null,
+          effectiveLedger: record.effectiveLedger ?? null,
+          effectiveTime: record.effectiveTime ?? null,
           wasmHash: record.wasmHash,
           contractVersion: record.contractVersion,
+          deploymentId: record.deploymentId ?? null,
+          metadata: record.metadata ?? {},
+          publishedBy: record.publishedBy,
+          networkPassphrase: record.networkPassphrase,
+          active: record.active,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
         })),
-      },
-    );
-
-    this.logger.log(
-      `Published ${published.length} contract registry entr${published.length === 1 ? "y" : "ies"} at version ${nextVersion}`,
-    );
-
-    await this.eventEmitter.emit(
-      ContractRegistryPublishedEvent,
-      new ContractRegistryPublishedEventPayload(
-        nextVersion,
-        published.map((record) => ({
-          name: record.name,
-          contractId: record.contractId,
-          wasmHash: record.wasmHash,
-          contractVersion: record.contractVersion,
-          deploymentId: record.deploymentId,
-        })),
-        actor,
-      ),
-    );
-
-    const enabledWebhooks =
-      await this.contractChangeWebhookService.getEnabledWebhooks();
-    if (enabledWebhooks.length > 0) {
-      this.webhookDispatcher.dispatch(enabledWebhooks, {
-        version: nextVersion,
-        event: "contract_registry.published",
-        actor,
-        deploymentId: dto.deploymentId,
-        contracts: published.map((record) => ({
-          name: record.name,
-          contractId: record.contractId,
-          wasmHash: record.wasmHash,
-          contractVersion: record.contractVersion,
-          deploymentId: record.deploymentId,
-        })),
+        p_expected_version: currentVersion,
       });
-    }
 
-    return this.getRegistry();
+      if (error) throw error;
+
+      const result = data as { success: boolean; newVersion: number; publishedCount: number; previousVersion: number };
+      if (!result?.success) {
+        throw new Error("Failed to publish contract registry");
+      }
+
+      const nextVersion = result.newVersion;
+
+      // Update in-memory fallback only after successful persistence
+      this.fallbackVersion = nextVersion;
+      const finalRecords = merged.map((record) => ({
+        ...record,
+        version: record.active ? nextVersion : record.version,
+      }));
+      this.writeFallback(finalRecords);
+
+      // Emit audit logs and webhooks only after durable persistence succeeds
+      await this.auditService.log(
+        "contract_registry",
+        "registry.publish",
+        dto.deploymentId,
+        {
+          actor,
+          version: nextVersion,
+          contracts: published.map((record) => ({
+            name: record.name,
+            contractId: record.contractId,
+            wasmHash: record.wasmHash,
+            contractVersion: record.contractVersion,
+          })),
+        },
+      );
+
+      this.logger.log(
+        `Published ${published.length} contract registry entr${published.length === 1 ? "y" : "ies"} at version ${nextVersion}`,
+      );
+
+      await this.eventEmitter.emit(
+        ContractRegistryPublishedEvent,
+        new ContractRegistryPublishedEventPayload(
+          nextVersion,
+          published.map((record) => ({
+            name: record.name,
+            contractId: record.contractId,
+            wasmHash: record.wasmHash,
+            contractVersion: record.contractVersion,
+            deploymentId: record.deploymentId,
+          })),
+          actor,
+        ),
+      );
+
+      const enabledWebhooks =
+        await this.contractChangeWebhookService.getEnabledWebhooks();
+      if (enabledWebhooks.length > 0) {
+        this.webhookDispatcher.dispatch(enabledWebhooks, {
+          version: nextVersion,
+          event: "contract_registry.published",
+          actor,
+          deploymentId: dto.deploymentId,
+          contracts: published.map((record) => ({
+            name: record.name,
+            contractId: record.contractId,
+            wasmHash: record.wasmHash,
+            contractVersion: record.contractVersion,
+            deploymentId: record.deploymentId,
+          })),
+        });
+      }
+
+      return this.getRegistry();
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish contract registry: ${(error as Error).message}`,
+      );
+      throw error;
+    }
   }
 
   async finalizeDualRead(
     contractName: string,
     actor = "deployment_automation",
   ) {
-    const records = await this.readRecords();
     const targetName = contractName.toLowerCase();
-    const candidate = records.find(
-      (record) => record.name === targetName && record.active,
-    );
 
-    if (!candidate) {
-      throw new NotFoundException(
-        `No active registry entry found for ${contractName}`,
+    try {
+      const client = this.supabaseService.getClient();
+      const { data, error } = await client.rpc("finalize_dual_read", {
+        p_network: this.configService.network,
+        p_contract_name: targetName,
+      });
+
+      if (error) throw error;
+
+      const result = data as { success: boolean; contractName: string; finalizedAt: string };
+      if (!result?.success) {
+        throw new Error("Failed to finalize dual-read");
+      }
+
+      // Update in-memory fallback only after successful persistence
+      const records = await this.readRecords();
+      const now = new Date().toISOString();
+      const updated = records.map((record) => {
+        if (record.name !== targetName) return record;
+        return {
+          ...record,
+          previousContractId: undefined,
+          effectiveLedger: record.effectiveLedger,
+          effectiveTime: now,
+          updatedAt: now,
+        };
+      });
+
+      this.writeFallback(updated);
+
+      // Emit audit log only after durable persistence succeeds
+      await this.auditService.log(
+        "contract_registry",
+        "registry.finalize_dual_read",
+        contractName,
+        {
+          actor,
+          finalizedAt: now,
+        },
       );
-    }
 
-    if (!candidate.previousContractId) {
-      throw new BadRequestException(
-        `Registry entry for ${contractName} is not in a dual-read transition window`,
+      this.logger.log(
+        `Finalized dual-read for contract ${contractName} at timestamp ${now}`,
       );
+
+      return this.getRegistry();
+    } catch (error) {
+      this.logger.error(
+        `Failed to finalize dual-read for ${contractName}: ${(error as Error).message}`,
+      );
+      throw error;
     }
-
-    const now = new Date().toISOString();
-    const updated = records.map((record) => {
-      if (record.name !== targetName) return record;
-      return {
-        ...record,
-        previousContractId: undefined,
-        effectiveLedger: record.effectiveLedger,
-        effectiveTime: now,
-        updatedAt: now,
-      };
-    });
-
-    this.writeFallback(updated);
-    await this.persistSnapshot(updated);
-    await this.auditService.log(
-      "contract_registry",
-      "registry.finalize_dual_read",
-      contractName,
-      {
-        actor,
-        finalizedAt: now,
-      },
-    );
-
-    this.logger.log(
-      `Finalized dual-read for contract ${contractName} at timestamp ${now}`,
-    );
-
-    return this.getRegistry();
   }
 
   async rollback(
     dto: RollbackContractRegistryDto,
     actor = "deployment_automation",
   ) {
-    const records = await this.readRecords();
     const targetName = dto.name.toLowerCase();
-    const candidate = records.find(
-      (record) =>
-        record.name === targetName && record.contractVersion === dto.version,
-    );
 
-    if (!candidate) {
-      throw new NotFoundException(
-        `No registry entry found for ${dto.name} at version ${dto.version}`,
-      );
-    }
-
-    const now = new Date().toISOString();
-    const nextVersion =
-      records.reduce(
-        (max, record) => Math.max(max, record.version),
-        this.fallbackVersion,
-      ) + 1;
-
-    const updated = records.map((record) => {
-      if (record.name !== targetName) return record;
-      return {
-        ...record,
-        active: record.contractVersion === dto.version,
-        updatedAt: now,
-        version:
-          record.contractVersion === dto.version ? nextVersion : record.version,
-      };
-    });
-
-    this.fallbackVersion = Math.max(this.fallbackVersion, nextVersion);
-    this.writeFallback(updated);
-    await this.persistSnapshot(updated);
-    await this.auditService.log(
-      "contract_registry",
-      "registry.rollback",
-      dto.name,
-      { actor, requestedVersion: dto.version, registryVersion: nextVersion },
-    );
-
-    await this.eventEmitter.emit(
-      ContractRegistryRolledBackEvent,
-      new ContractRegistryRolledBackEventPayload(
-        targetName,
-        nextVersion,
-        candidate.contractId,
-        candidate.wasmHash,
-        candidate.contractVersion,
-        actor,
-      ),
-    );
-
-    const enabledWebhooks =
-      await this.contractChangeWebhookService.getEnabledWebhooks();
-    if (enabledWebhooks.length > 0) {
-      this.webhookDispatcher.dispatch(enabledWebhooks, {
-        version: nextVersion,
-        event: "contract_registry.rolled_back",
-        contractName: targetName,
-        contractId: candidate.contractId,
-        wasmHash: candidate.wasmHash,
-        contractVersion: candidate.contractVersion,
-        actor,
+    try {
+      const client = this.supabaseService.getClient();
+      const { data, error } = await client.rpc("rollback_contract_registry", {
+        p_network: this.configService.network,
+        p_contract_name: targetName,
+        p_target_contract_version: dto.version,
       });
-    }
 
-    return this.getRegistry();
+      if (error) throw error;
+
+      const result = data as {
+        success: boolean;
+        contractName: string;
+        targetVersion: number;
+        newRegistryVersion: number;
+        contractId: string;
+        wasmHash: string;
+      };
+      if (!result?.success) {
+        throw new Error("Failed to rollback contract registry");
+      }
+
+      const nextVersion = result.newRegistryVersion;
+
+      // Update in-memory fallback only after successful persistence
+      this.fallbackVersion = Math.max(this.fallbackVersion, nextVersion);
+      const records = await this.readRecords();
+      const now = new Date().toISOString();
+      const updated = records.map((record) => {
+        if (record.name !== targetName) return record;
+        return {
+          ...record,
+          active: record.contractVersion === dto.version,
+          updatedAt: now,
+          version:
+            record.contractVersion === dto.version ? nextVersion : record.version,
+        };
+      });
+
+      this.writeFallback(updated);
+
+      // Emit audit logs and webhooks only after durable persistence succeeds
+      await this.auditService.log(
+        "contract_registry",
+        "registry.rollback",
+        dto.name,
+        { actor, requestedVersion: dto.version, registryVersion: nextVersion },
+      );
+
+      await this.eventEmitter.emit(
+        ContractRegistryRolledBackEvent,
+        new ContractRegistryRolledBackEventPayload(
+          targetName,
+          nextVersion,
+          result.contractId,
+          result.wasmHash,
+          dto.version,
+          actor,
+        ),
+      );
+
+      const enabledWebhooks =
+        await this.contractChangeWebhookService.getEnabledWebhooks();
+      if (enabledWebhooks.length > 0) {
+        this.webhookDispatcher.dispatch(enabledWebhooks, {
+          version: nextVersion,
+          event: "contract_registry.rolled_back",
+          contractName: targetName,
+          contractId: result.contractId,
+          wasmHash: result.wasmHash,
+          contractVersion: dto.version,
+          actor,
+        });
+      }
+
+      return this.getRegistry();
+    } catch (error) {
+      this.logger.error(
+        `Failed to rollback contract registry for ${dto.name}: ${(error as Error).message}`,
+      );
+      throw error;
+    }
   }
 
   private validatePassphrase(passphrase: string): void {
@@ -431,6 +498,8 @@ export class ContractRegistryService {
   }
 
   private async persistSnapshot(records: RegistryRecord[]): Promise<void> {
+    // This method is deprecated in favor of transactional RPC functions.
+    // Kept for backward compatibility but should not be used in new code.
     try {
       const client = this.supabaseService.getClient();
       await client
