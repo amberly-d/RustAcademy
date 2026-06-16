@@ -254,7 +254,12 @@ pub fn set_upgrade_window(
 ///
 /// **Admin only**. Emits `UpgradeStarted` event with old/new versions.
 /// Blocks if window is not active or upgrade already in progress.
-pub fn start_upgrade(env: &Env, caller: &Address, new_version: u32) -> Result<(),  RustAcademyError> {
+pub fn start_upgrade(
+    env: &Env,
+    caller: &Address,
+    new_version: u32,
+    new_wasm_hash: BytesN<32>,
+) -> Result<(),  RustAcademyError> {
     require_admin(env, caller)?;
 
     // Check upgrade window is active (Issue #432 AC1)
@@ -270,11 +275,15 @@ pub fn start_upgrade(env: &Env, caller: &Address, new_version: u32) -> Result<()
     let (window_start, window_end) = storage::get_upgrade_window(env);
 
     storage::set_upgrade_in_progress(env, true);
+    storage::set_pending_upgrade_version(env, new_version);
+    storage::set_pending_upgrade_wasm_hash(env, &new_wasm_hash);
+
     publish_upgrade_started(
         env,
         caller,
         old_version,
         new_version,
+        new_wasm_hash,
         window_start,
         window_end,
     );
@@ -282,9 +291,51 @@ pub fn start_upgrade(env: &Env, caller: &Address, new_version: u32) -> Result<()
     Ok(())
 }
 
+/// Perform the WASM swap (**Admin only**).
+///
+/// Must be called during an active upgrade window and while an upgrade is in progress.
+/// The provided WASM hash must match the one recorded during `start_upgrade`.
+pub fn upgrade(
+    env: &Env,
+    caller: &Address,
+    new_wasm_hash: BytesN<32>,
+) -> Result<(),  RustAcademyError> {
+    require_admin(env, caller)?;
+
+    if !storage::is_upgrade_in_progress(env) {
+        return Err( RustAcademyError::InternalError);
+    }
+
+    if !storage::is_upgrade_window_active(env) {
+        return Err( RustAcademyError::InvalidAmount);
+    }
+
+    let pending_hash = storage::get_pending_upgrade_wasm_hash(env)
+        .ok_or( RustAcademyError::InternalError)?;
+
+    if new_wasm_hash != pending_hash {
+        return Err( RustAcademyError::CommitmentMismatch);
+    }
+
+    storage::set_wasm_hash(env, &new_wasm_hash);
+    env.deployer()
+        .update_current_contract_wasm(new_wasm_hash.clone());
+
+    crate::events::publish_contract_upgraded(env, new_wasm_hash, caller);
+
+    Ok(())
+}
+
+/// Cancel a pending upgrade and clear gating state (**Admin only**).
+pub fn cancel_upgrade(env: &Env, caller: &Address) -> Result<(),  RustAcademyError> {
+    require_admin(env, caller)?;
+    storage::clear_pending_upgrade(env);
+    Ok(())
+}
+
 /// Complete an upgrade (migrate state, update version, emit event).
 ///
-/// **Admin only**. Must be called after `start_upgrade` to finalize.
+/// **Admin only**. Must be called after `start_upgrade` and `upgrade` to finalize.
 /// Calls `migrate()` internally and re-checks invariants.
 pub fn complete_upgrade(
     env: &Env,
@@ -295,17 +346,35 @@ pub fn complete_upgrade(
         return Err( RustAcademyError::InternalError); // Not in upgrade state
     }
 
+    // Verify version and hash (Issue #432 AC2)
+    let pending_version = storage::get_pending_upgrade_version(env)
+        .ok_or( RustAcademyError::InternalError)?;
+    let pending_hash = storage::get_pending_upgrade_wasm_hash(env)
+        .ok_or( RustAcademyError::InternalError)?;
+
+    if new_version != pending_version && new_version != 0 {
+        return Err( RustAcademyError::InvalidContractVersion);
+    }
+
+    // Verify currently running WASM matches pending hash
+    // Note: in Soroban, we can't directly check the current WASM hash from within the contract
+    // except by checking what we just stored in storage::set_wasm_hash during upgrade().
+    let actual_hash = storage::get_wasm_hash(env).ok_or( RustAcademyError::InternalError)?;
+    if actual_hash != pending_hash {
+        return Err( RustAcademyError::InternalError);
+    }
+
     let old_version = get_version(env);
 
     // Run migration
     let migrated_version = migrate(env, caller)?;
 
-    // Ensure new version matches expected (Issue #432 AC2)
-    if migrated_version != new_version && new_version != 0 {
+    // Ensure migrated version matches expected
+    if migrated_version != pending_version && pending_version != 0 {
         return Err( RustAcademyError::InvalidContractVersion);
     }
 
-    storage::set_upgrade_in_progress(env, false);
+    storage::clear_pending_upgrade(env);
     publish_upgrade_completed(env, caller, old_version, migrated_version);
 
     Ok(migrated_version)

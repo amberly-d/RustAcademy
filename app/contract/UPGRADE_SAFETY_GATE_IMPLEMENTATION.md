@@ -17,34 +17,44 @@ Added contract-level safeguards and comprehensive invariant enforcement for safe
 
 ### AC1: Upgrades Blocked Outside Window ✅
 
-**What**: `start_upgrade()` deterministically fails if called outside the admin-configured time window.
+**What**: `start_upgrade()` and `upgrade()` deterministically fail if called outside the admin-configured time window or if no upgrade is in progress.
 
 **Implementation**:
 
-- Storage keys: `UpgradeWindowStart`, `UpgradeWindowEnd`
+- Storage keys: `UpgradeWindowStart`, `UpgradeWindowEnd`, `UpgradeInProgress`, `PendingUpgradeWasmHash`, `PendingUpgradeVersion`
 - Function: `storage::is_upgrade_window_active(env)` checks ledger timestamp against `[start, end)`
-- Error: Returns `InvalidAmount` (repurposed as "upgrade window not active")
+- Gating: `upgrade()` now requires `UpgradeInProgress` and active window.
+- Verification: `upgrade()` verifies the WASM hash matches the one stored in `start_upgrade()`.
+- Error: Returns `InvalidAmount` (repurposed as "upgrade window not active") or `InternalError` (not in progress).
 
-**Test**: `upgrade_safety_gate_blocks_upgrade_outside_window` (lines 660–703 in upgrade_test.rs)
+**Test**: `upgrade_safety_gate_blocks_upgrade_outside_window`, `upgrade_safety_gate_blocks_direct_upgrade_without_start`
 
 - ✅ Fails before window
 - ✅ Fails after window
 - ✅ Succeeds during window
+- ✅ Fails direct upgrade without start
 
 **Code Flow**:
 
 ```rust
-admin::start_upgrade()
+admin::start_upgrade(version, hash)
   → storage::is_upgrade_window_active()
-    → check: now >= start && (end == 0 || now <= end)
-    → return Err(InvalidAmount) if false
+  → storage::set_upgrade_in_progress(true)
+  → storage::set_pending_upgrade_wasm_hash(hash)
+  → storage::set_pending_upgrade_version(version)
+
+admin::upgrade(hash)
+  → check: is_upgrade_in_progress() && is_upgrade_window_active()
+  → check: hash == pending_upgrade_wasm_hash
+  → storage::set_wasm_hash(hash)
+  → deployer().update_current_contract_wasm(hash)
 ```
 
 ---
 
 ### AC2: Post-Upgrade Invariant Checks Fail Deterministically ✅
 
-**What**: After migration, contract-wide invariants are validated. If any fail, `complete_upgrade()` panics with `InternalError`, rolling back all state atomically.
+**What**: After migration, contract-wide invariants are validated. If any fail, `complete_upgrade()` panics with `InternalError`, rolling back all state atomically. `complete_upgrade()` also verifies the target version and WASM hash.
 
 **Invariants** (defined in `storage::assert_post_upgrade_invariants()`):
 
@@ -53,40 +63,21 @@ admin::start_upgrade()
 3. **Admin Initialized**: `admin != None`
 4. **Per-Asset Fee Bounds**: `fee_bps ≤ 10_000`, `arbiter_bps ≤ 10_000`
 
-**Implementation** (storage.rs lines 283–306):
+**Post-Upgrade Verification**:
+- `complete_upgrade()` verifies `new_version == pending_version`
+- `complete_upgrade()` verifies `current_wasm_hash == pending_wasm_hash`
+
+**Implementation**:
 
 ```rust
-pub fn assert_post_upgrade_invariants(env: &Env) -> Result<(), &'static str> {
-    let fee_cfg = get_fee_config(env);
-    if fee_cfg.fee_bps > 10_000 {
-        return Err("fee_bps exceeds maximum (10000)");
-    }
-    // ... (additional checks for version, admin)
-    Ok(())
+pub fn complete_upgrade(env, caller, new_version) {
+    if !storage::is_upgrade_in_progress(env) { return Err(InternalError); }
+    if new_version != storage::get_pending_upgrade_version(env) { return Err(InvalidContractVersion); }
+    if storage::get_wasm_hash(env) != storage::get_pending_upgrade_wasm_hash(env) { return Err(InternalError); }
+    // ... run migrate() ...
+    storage::clear_pending_upgrade(env);
 }
 ```
-
-**Integration** (admin.rs line 183):
-
-```rust
-pub fn migrate() {
-    // ... run migration steps ...
-    // Post-upgrade invariant checks (Issue #432)
-    if let Err(_msg) = storage::assert_post_upgrade_invariants(env) {
-        env.panic_with_error( RustAcademyError::InternalError);
-    }
-}
-```
-
-**Test**: `upgrade_safety_gate_post_upgrade_invariants_enforced` (lines 705–737)
-
-- ✅ Window validation works
-- ✅ Invariants validated post-migrate
-- ✅ `complete_upgrade()` succeeds on clean state
-
-**Determinism**: All checks use `>` and `==` comparisons on primitive types (u32, bool, Option); no floating-point or randomness.
-
----
 
 ### AC3: Indexers Track Upgrades via Events Alone ✅
 

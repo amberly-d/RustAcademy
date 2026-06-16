@@ -1066,15 +1066,7 @@ impl  RustAcademyContract {
         caller: Address,
         new_wasm_hash: BytesN<32>,
     ) -> Result<(),  RustAcademyError> {
-        admin::require_admin(&env, &caller)?;
-
-        storage::set_wasm_hash(&env, &new_wasm_hash);
-        env.deployer()
-            .update_current_contract_wasm(new_wasm_hash.clone());
-
-        events::publish_contract_upgraded(&env, new_wasm_hash, &caller);
-
-        Ok(())
+        admin::upgrade(&env, &caller, new_wasm_hash)
     }
 
     /// Set the upgrade window: when upgrades are permitted (**Admin only**).
@@ -1118,12 +1110,23 @@ impl  RustAcademyContract {
     /// * `env` - The contract environment
     /// * `caller` - Caller address (must be admin)
     /// * `new_version` - The target contract version
+    /// * `new_wasm_hash` - The target WASM hash
     ///
     /// # Errors
     /// * `InvalidAmount` - (repurposed) upgrade window not active
     /// * `ContractPaused` - (repurposed) upgrade already in progress
-    pub fn start_upgrade(env: Env, caller: Address, new_version: u32) -> Result<(),  RustAcademyError> {
-        admin::start_upgrade(&env, &caller, new_version)
+    pub fn start_upgrade(
+        env: Env,
+        caller: Address,
+        new_version: u32,
+        new_wasm_hash: BytesN<32>,
+    ) -> Result<(),  RustAcademyError> {
+        admin::start_upgrade(&env, &caller, new_version, new_wasm_hash)
+    }
+
+    /// Cancel a pending upgrade and clear gating state (**Admin only**).
+    pub fn cancel_upgrade(env: Env, caller: Address) -> Result<(),  RustAcademyError> {
+        admin::cancel_upgrade(&env, &caller)
     }
 
     /// Complete an upgrade after WASM swap (**Admin only**).

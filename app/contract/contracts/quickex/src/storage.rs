@@ -143,6 +143,10 @@ pub enum DataKey {
     UpgradeWindowEnd,
     /// Flag indicating an upgrade is in progress (between start_upgrade and complete_upgrade).
     UpgradeInProgress,
+    /// Pending WASM hash stored during start_upgrade.
+    PendingUpgradeWasmHash,
+    /// Pending contract version stored during start_upgrade.
+    PendingUpgradeVersion,
     /// Numeric privacy level per account.
     PrivacyLevel(Address),
     /// Privacy level change history per account.
@@ -258,6 +262,47 @@ pub fn is_upgrade_in_progress(env: &Env) -> bool {
         .persistent()
         .get(&DataKey::UpgradeInProgress)
         .unwrap_or(false)
+}
+
+/// Set pending upgrade WASM hash.
+pub fn set_pending_upgrade_wasm_hash(env: &Env, hash: &BytesN<32>) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PendingUpgradeWasmHash, hash);
+}
+
+/// Get pending upgrade WASM hash.
+pub fn get_pending_upgrade_wasm_hash(env: &Env) -> Option<BytesN<32>> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::PendingUpgradeWasmHash)
+}
+
+/// Set pending upgrade version.
+pub fn set_pending_upgrade_version(env: &Env, version: u32) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PendingUpgradeVersion, &version);
+}
+
+/// Get pending upgrade version.
+pub fn get_pending_upgrade_version(env: &Env) -> Option<u32> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::PendingUpgradeVersion)
+}
+
+/// Clear all pending upgrade state.
+pub fn clear_pending_upgrade(env: &Env) {
+    env.storage()
+        .persistent()
+        .remove(&DataKey::UpgradeInProgress);
+    env.storage()
+        .persistent()
+        .remove(&DataKey::PendingUpgradeWasmHash);
+    env.storage()
+        .persistent()
+        .remove(&DataKey::PendingUpgradeVersion);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

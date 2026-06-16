@@ -439,6 +439,7 @@ pub struct UpgradeStartedEvent {
     pub schema_version: u32,
     pub old_version: u32,
     pub new_version: u32,
+    pub new_wasm_hash: BytesN<32>,
     pub window_start: u64,
     pub window_end: u64,
     pub timestamp: u64,
@@ -471,6 +472,7 @@ pub(crate) fn publish_upgrade_started(
     admin: &Address,
     old_version: u32,
     new_version: u32,
+    new_wasm_hash: BytesN<32>,
     window_start: u64,
     window_end: u64,
 ) {
@@ -479,6 +481,7 @@ pub(crate) fn publish_upgrade_started(
         schema_version: EVENT_SCHEMA_VERSION,
         old_version,
         new_version,
+        new_wasm_hash,
         window_start,
         window_end,
         timestamp: env.ledger().timestamp(),
