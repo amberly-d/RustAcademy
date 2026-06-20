@@ -39,8 +39,6 @@
 //! - **Value layout**: Changing `EscrowEntry` fields may require migration logic; adding optional
 //!   fields can be done carefully with defaults.
 
-
-
 use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Vec};
 
 use crate::types::{DisputeVote, EscrowEntry, FeeConfig, Role, StealthEscrowEntry};
@@ -133,6 +131,8 @@ pub enum DataKey {
     ContractVersion,
     /// Admin address (singleton).
     Admin,
+    /// Pending admin transfer target (singleton).
+    PendingAdminTransfer,
     /// Explicit one-time initialization flag (singleton).
     Initialized,
     /// Paused state (singleton).
@@ -478,6 +478,25 @@ pub fn set_admin(env: &Env, admin: &Address) {
 pub fn get_admin(env: &Env) -> Option<Address> {
     let key = DataKey::Admin;
     env.storage().persistent().get(&key)
+}
+
+/// Set the pending admin transfer target.
+pub fn set_pending_admin_transfer(env: &Env, pending_admin: &Address) {
+    let key = DataKey::PendingAdminTransfer;
+    env.storage().persistent().set(&key, pending_admin);
+}
+
+/// Get the pending admin transfer target.
+pub fn get_pending_admin_transfer(env: &Env) -> Option<Address> {
+    let key = DataKey::PendingAdminTransfer;
+    env.storage().persistent().get(&key)
+}
+
+/// Clear any pending admin transfer target.
+pub fn clear_pending_admin_transfer(env: &Env) {
+    env.storage()
+        .persistent()
+        .remove(&DataKey::PendingAdminTransfer);
 }
 
 // -----------------------------------------------------------------------------

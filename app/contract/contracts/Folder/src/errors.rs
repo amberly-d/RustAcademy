@@ -10,7 +10,7 @@ use soroban_sdk::contracterror;
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
-pub enum  RustAcademyError {
+pub enum RustAcademyError {
     // Validation failures (100-199)
     InvalidAmount = 100,
     InvalidSalt = 101,
@@ -19,6 +19,10 @@ pub enum  RustAcademyError {
     Unauthorized = 200,
     AlreadyInitialized = 201,
     InsufficientRole = 202,
+    /// The stored admin/role snapshot is internally inconsistent.
+    InvalidRoleState = 203,
+    /// No pending admin transfer is available to accept or cancel.
+    NoPendingAdminTransfer = 204,
     // State, escrow, and commitment violations (300-399)
     ContractPaused = 300,
     PrivacyAlreadySet = 301,
