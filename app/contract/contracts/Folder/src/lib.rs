@@ -48,9 +48,11 @@ mod upgrade_test;
 use errors::RustAcademyError;
 use storage::*;
 use types::{
-    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig, PerAssetFeeConfig,
-    PrivacyAwareEscrowView, Role, StealthDepositParams,
+    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
+    PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
 };
+
+pub use types::FeeRatio;
 
 ///  RustAcademy Privacy Contract
 ///

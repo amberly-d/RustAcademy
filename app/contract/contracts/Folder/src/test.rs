@@ -881,6 +881,11 @@ fn test_event_snapshot_escrow_withdrawn_schema() {
     assert_eq!(version, EVENT_SCHEMA_VERSION);
     assert!(data_map.get(Symbol::new(&env, "token")).is_some());
     assert!(data_map.get(Symbol::new(&env, "amount")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "fee")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "arbiter_fee")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "platform_fee")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "collector_fee")).is_some());
+    assert!(data_map.get(Symbol::new(&env, "net_payout")).is_some());
     assert!(data_map.get(Symbol::new(&env, "timestamp")).is_some());
 }
 

@@ -61,6 +61,10 @@ pub enum RustAcademyError {
     ArbiterAlreadyVoted = 320,
     /// Insufficient arbiter votes to reach the threshold for resolution.
     InsufficientVotes = 321,
+    /// Fee ratios or denominators are invalid for the configured payout split.
+    InvalidFeeConfiguration = 322,
+    /// The configured fee split exceeds the available fee budget.
+    FeeSplitExceedsTotal = 323,
     // Stealth address errors (400-499)
     /// Derived stealth address does not match the provided one.
     StealthAddressMismatch = 400,

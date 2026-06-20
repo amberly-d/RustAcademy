@@ -550,8 +550,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
     updated.status = EscrowStatus::Spent;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (_payout_amount, fee_amount) =
-        fee_router::route_payout(env, &token_ref, &to, amount_paid, None);
+    let fee_breakdown = fee_router::route_payout(env, &token_ref, &to, amount_paid, None)?;
 
     events::publish_escrow_withdrawn(
         env,
@@ -559,7 +558,11 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
         to.clone(),
         token_ref.clone(),
         amount_paid,
-        fee_amount,
+        fee_breakdown.total_fee,
+        fee_breakdown.arbiter_fee,
+        fee_breakdown.platform_fee,
+        fee_breakdown.collector_fee,
+        fee_breakdown.net_payout,
     );
 
     hook::invoke_hooks(
@@ -569,7 +572,7 @@ pub fn withdraw(env: &Env, amount: i128, to: Address, salt: Bytes) -> Result<boo
         owner,
         token_ref,
         amount_paid,
-        fee_amount,
+        fee_breakdown.total_fee,
     );
 
     Ok(true)
@@ -789,7 +792,7 @@ pub fn resolve_dispute(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
+    let fee_breakdown = if final_status == EscrowStatus::Spent {
         fee_router::route_payout(
             env,
             &entry.token,
@@ -805,8 +808,14 @@ pub fn resolve_dispute(
             &recipient_address,
             &entry.amount_paid,
         );
-        (entry.amount_paid, 0)
-    };
+        Ok(fee_router::FeeBreakdown {
+            net_payout: entry.amount_paid,
+            total_fee: 0,
+            arbiter_fee: 0,
+            platform_fee: 0,
+            collector_fee: 0,
+        })
+    }?;
 
     if resolve_for_owner {
         events::publish_escrow_refunded(
@@ -832,7 +841,11 @@ pub fn resolve_dispute(
             recipient_address.clone(),
             entry.token.clone(),
             entry.amount_paid,
-            fee_amount,
+            fee_breakdown.total_fee,
+            fee_breakdown.arbiter_fee,
+            fee_breakdown.platform_fee,
+            fee_breakdown.collector_fee,
+            fee_breakdown.net_payout,
         );
         hook::invoke_hooks(
             env,
@@ -841,7 +854,7 @@ pub fn resolve_dispute(
             entry.owner.clone(),
             entry.token,
             entry.amount_paid,
-            fee_amount,
+            fee_breakdown.total_fee,
         );
     }
 
@@ -1013,7 +1026,7 @@ pub fn resolve_dispute_multi_sig(
     updated.status = final_status;
     put_escrow(env, &commitment_bytes, &updated);
 
-    let (_payout_amount, fee_amount) = if final_status == EscrowStatus::Spent {
+    let fee_breakdown = if final_status == EscrowStatus::Spent {
         fee_router::route_payout(
             env,
             &entry.token,
@@ -1028,8 +1041,14 @@ pub fn resolve_dispute_multi_sig(
             &recipient_address,
             &entry.amount_paid,
         );
-        (entry.amount_paid, 0)
-    };
+        Ok(fee_router::FeeBreakdown {
+            net_payout: entry.amount_paid,
+            total_fee: 0,
+            arbiter_fee: 0,
+            platform_fee: 0,
+            collector_fee: 0,
+        })
+    }?;
 
     // Emit dispute resolved event
     events::publish_dispute_resolved(
@@ -1065,7 +1084,11 @@ pub fn resolve_dispute_multi_sig(
             recipient_address.clone(),
             entry.token.clone(),
             entry.amount_paid,
-            fee_amount,
+            fee_breakdown.total_fee,
+            fee_breakdown.arbiter_fee,
+            fee_breakdown.platform_fee,
+            fee_breakdown.collector_fee,
+            fee_breakdown.net_payout,
         );
         hook::invoke_hooks(
             env,
@@ -1074,7 +1097,7 @@ pub fn resolve_dispute_multi_sig(
             entry.owner.clone(),
             entry.token,
             entry.amount_paid,
-            fee_amount,
+            fee_breakdown.total_fee,
         );
     }
 

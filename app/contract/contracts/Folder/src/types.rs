@@ -2,7 +2,37 @@
 //!
 //! See [`crate::storage`] for the storage schema and key layout.
 
+use crate::errors::RustAcademyError;
 use soroban_sdk::{contracttype, Address, BytesN, Vec};
+
+/// Explicit fee ratio used to prescale a payout share.
+///
+/// A ratio of `0 / 1` disables the share. When `numerator > 0`, `denominator`
+/// must also be non-zero and the ratio must not exceed `1.0`.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FeeRatio {
+    pub numerator: u32,
+    pub denominator: u32,
+}
+
+impl FeeRatio {
+    /// Returns `true` when the ratio is configured to pay out a non-zero share.
+    pub fn is_active(&self) -> bool {
+        self.numerator > 0
+    }
+
+    /// Validate that the ratio is usable for fee distribution.
+    pub fn validate(&self) -> Result<(), RustAcademyError> {
+        if self.numerator == 0 {
+            return Ok(());
+        }
+        if self.denominator == 0 || self.numerator > self.denominator {
+            return Err(RustAcademyError::InvalidFeeConfiguration);
+        }
+        Ok(())
+    }
+}
 
 /// Escrow entry status.
 ///
@@ -183,8 +213,12 @@ pub struct FeeConfig {
 /// persistent storage. When present for a token, overrides the global [`FeeConfig`] for
 /// that token only. A value of `fee_bps = 0` explicitly disables fees for that token even
 /// if the global config is non-zero.
+///
+/// The explicit `*_fee` ratios are optional and default to zero. When any of
+/// them are set, the router uses the prescaled ratios instead of the legacy
+/// `arbiter_bps` split for that token.
 #[contracttype]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct PerAssetFeeConfig {
     /// Fee in basis points for this specific token. Overrides the global `FeeConfig`.
     /// Range: 0 (no fee) to 10000 (100%).
@@ -193,6 +227,26 @@ pub struct PerAssetFeeConfig {
     /// 0 = no arbiter split — entire fee goes to the collector.
     /// Example: fee_bps=200 (2%), arbiter_bps=2000 (20%) → arbiter gets 0.4%, collector 1.6%.
     pub arbiter_bps: u32,
+    /// Explicit arbiter payout share, using a prescaled numerator / denominator pair.
+    pub arbiter_fee: FeeRatio,
+    /// Explicit platform payout share, using a prescaled numerator / denominator pair.
+    pub platform_fee: FeeRatio,
+    /// Explicit collector payout share, using a prescaled numerator / denominator pair.
+    pub collector_fee: FeeRatio,
+}
+
+impl PerAssetFeeConfig {
+    /// Validate the configuration before persisting it.
+    pub fn validate(&self) -> Result<(), RustAcademyError> {
+        if self.fee_bps > 10_000 || self.arbiter_bps > 10_000 {
+            return Err(RustAcademyError::InvalidFeeConfiguration);
+        }
+
+        self.arbiter_fee.validate()?;
+        self.platform_fee.validate()?;
+        self.collector_fee.validate()?;
+        Ok(())
+    }
 }
 
 /// Oracle fee configuration for dynamic USD-based fee collection.
