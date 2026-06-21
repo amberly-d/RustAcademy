@@ -22,6 +22,7 @@ mod fee_test;
 #[cfg(test)]
 mod fuzz_test;
 mod hook;
+mod metadata;
 #[cfg(test)]
 mod metadata_test;
 pub mod nonce;
@@ -48,8 +49,9 @@ mod upgrade_test;
 use errors::RustAcademyError;
 use storage::*;
 use types::{
-    DeploymentMetadata, EscrowEntry, EscrowStatus, FeeConfig, OracleFeeConfig,
-    PerAssetFeeConfig, PrivacyAwareEscrowView, Role, StealthDepositParams,
+    ContractHealth, DeploymentMetadata, EscrowEntry, EscrowStatus, FeatureFlags, FeeConfig,
+    OracleFeeConfig, PerAssetFeeConfig, PrivacyAwareEscrowView, Role, SchemaCompatibility,
+    StealthDepositParams, SupportedVersions, UpgradeState,
 };
 
 pub use types::FeeRatio;
@@ -657,12 +659,59 @@ impl RustAcademyContract {
     /// - `contract_id` — on-chain address of this contract instance, which binds
     ///   the metadata to a specific deployment and network.
     pub fn get_deployment_metadata(env: Env) -> DeploymentMetadata {
-        DeploymentMetadata {
-            contract_version: admin::get_version(&env),
-            event_schema_version: events::EVENT_SCHEMA_VERSION,
-            wasm_hash: storage::get_wasm_hash(&env),
-            contract_id: env.current_contract_address(),
-        }
+        metadata::deployment_metadata(&env)
+    }
+
+    /// Return a non-mutating health summary of the contract.
+    ///
+    /// The status is derived from pause, emergency, and upgrade flags.  It is
+    /// ordered from most to least severe: emergency > upgrading > paused > healthy.
+    pub fn get_contract_health(env: Env) -> ContractHealth {
+        metadata::contract_health(&env)
+    }
+
+    /// Return the feature flags supported by this contract build.
+    ///
+    /// Tooling can use these flags to detect whether optional flows (e.g. upgrade
+    /// gating, stealth escrows) are available before sending writes.
+    pub fn get_feature_flags(_env: Env) -> FeatureFlags {
+        metadata::feature_flags()
+    }
+
+    /// Return the state of the upgrade gating mechanism.
+    pub fn get_upgrade_state(env: Env) -> UpgradeState {
+        metadata::upgrade_state(&env)
+    }
+
+    /// Return the supported version ranges for this contract build.
+    pub fn get_supported_versions(env: Env) -> SupportedVersions {
+        metadata::supported_versions(&env)
+    }
+
+    /// Check whether a caller-supplied version pair is compatible with this deployment.
+    ///
+    /// The contract version is compatible when it equals the current stored version
+    /// (migrations are required to move between contract versions).  The event
+    /// schema version is compatible when it is one of the versions emitted by this
+    /// build.
+    pub fn check_schema_compatibility(
+        env: Env,
+        requested_contract_version: u32,
+        requested_event_schema_version: u32,
+    ) -> SchemaCompatibility {
+        metadata::check_schema_compatibility(
+            &env,
+            requested_contract_version,
+            requested_event_schema_version,
+        )
+    }
+
+    /// Return the current granular pause bitmask.
+    ///
+    /// See [`crate::storage::PauseFlag`] for the bit definitions.  A value of `0`
+    /// means no features are paused.
+    pub fn get_pause_flags(env: Env) -> u64 {
+        metadata::pause_flags(&env)
     }
 
     /// Run any pending data migrations for the current contract code (**Admin only**).
