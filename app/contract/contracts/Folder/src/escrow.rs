@@ -232,6 +232,132 @@ pub fn deposit(
 }
 
 // ---------------------------------------------------------------------------
+// deposit_with_arbiters
+// ---------------------------------------------------------------------------
+
+/// Maximum number of arbiters allowed in a multi-sig escrow.
+pub const MAX_ARBITERS: u32 = 10;
+
+/// Create a multi-signature (M-of-N) escrow where `threshold` of `arbiters` must
+/// vote to resolve any dispute.
+///
+/// - Transfers `amount` from `owner` to the contract.
+/// - Sets `arbiters` and `arbiter_threshold` on the entry (multi-sig mode).
+/// - `arbiter` field is set to `None`; resolution goes through `vote_for_dispute`.
+///
+/// # Errors
+/// - [`InvalidAmount`] – amount ≤ 0.
+/// - [`InvalidSalt`] – salt > 1024 bytes.
+/// - [`InvalidThreshold`] – threshold is 0, empty arbiters list, or threshold > len(arbiters).
+/// - [`DuplicateArbiter`] – the arbiters list contains a duplicate address.
+/// - [`TooManyArbiters`] – the arbiters list exceeds [`MAX_ARBITERS`].
+/// - [`CommitmentAlreadyExists`] – a commitment with the same key already exists.
+#[allow(clippy::too_many_arguments)]
+pub fn deposit_with_arbiters(
+    env: &Env,
+    token: Address,
+    amount: i128,
+    owner: Address,
+    salt: Bytes,
+    timeout_secs: u64,
+    arbiters: Vec<Address>,
+    threshold: u32,
+) -> Result<BytesN<32>,  RustAcademyError> {
+    if amount <= 0 {
+        return Err( RustAcademyError::InvalidAmount);
+    }
+    if arbiters.is_empty() || threshold == 0 {
+        return Err( RustAcademyError::InvalidThreshold);
+    }
+    let arbiter_count = arbiters.len();
+    if threshold > arbiter_count {
+        return Err( RustAcademyError::InvalidThreshold);
+    }
+    if arbiter_count > MAX_ARBITERS {
+        return Err( RustAcademyError::TooManyArbiters);
+    }
+
+    // Reject duplicate arbiters (O(n²) is fine for small n ≤ MAX_ARBITERS).
+    for i in 0..arbiter_count {
+        for j in (i + 1)..arbiter_count {
+            if arbiters.get_unchecked(i) == arbiters.get_unchecked(j) {
+                return Err( RustAcademyError::DuplicateArbiter);
+            }
+        }
+    }
+
+    owner.require_auth();
+
+    let expires_at = compute_expires_at(env, timeout_secs)?;
+
+    // Use a sentinel None arbiter for escrow_id derivation — the arbiters vec
+    // is stored in the entry but not part of the dedup key (matching `deposit`).
+    let escrow_id =
+        escrow_id::derive_escrow_id(env, &token, amount, &owner, &salt, timeout_secs, &None)?;
+    if let Some(existing) = get_escrow_id_mapping(env, &escrow_id) {
+        return Ok(existing);
+    }
+
+    let (commitment, legacy_commitment) =
+        commitment::amount_commitment_hashes(env, &owner, amount, &salt)?;
+    let commitment_bytes: Bytes = commitment.clone().into();
+    if has_escrow(env, &commitment_bytes) {
+        return Err( RustAcademyError::CommitmentAlreadyExists);
+    }
+    if legacy_commitment != commitment {
+        let legacy_bytes: Bytes = legacy_commitment.into();
+        if has_escrow(env, &legacy_bytes) {
+            return Err( RustAcademyError::CommitmentAlreadyExists);
+        }
+    }
+
+    let now = env.ledger().timestamp();
+    let token_client = token::Client::new(env, &token);
+    let commitment_bytes_ref = commitment_bytes.clone();
+
+    let entry = EscrowEntry {
+        token, // moved
+        amount_due: amount,
+        amount_paid: amount,
+        owner: owner.clone(),
+        status: EscrowStatus::Pending,
+        created_at: now,
+        expires_at,
+        arbiter: None,
+        arbiters,
+        arbiter_threshold: threshold,
+    };
+
+    put_escrow(env, &commitment_bytes, &entry);
+    put_escrow_id_mapping(env, &escrow_id, &commitment);
+    put_commitment_escrow_id(env, &commitment_bytes_ref, &escrow_id);
+    token_client.transfer(&owner, env.current_contract_address(), &amount);
+
+    let token_addr = token_client.address.clone();
+    events::publish_escrow_deposited(
+        env,
+        commitment.clone(),
+        owner.clone(),
+        token_addr.clone(),
+        amount,
+        amount,
+        expires_at,
+    );
+
+    hook::invoke_hooks(
+        env,
+        HookEventKind::Create,
+        &commitment,
+        owner,
+        token_addr,
+        amount,
+        0,
+    );
+
+    Ok(commitment)
+}
+
+// ---------------------------------------------------------------------------
 // deposit_with_commitment
 // ---------------------------------------------------------------------------
 

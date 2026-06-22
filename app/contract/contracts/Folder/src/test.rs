@@ -3637,6 +3637,110 @@ fn test_multi_payment_sequence() {
 }
 
 // ============================================================================
+// deposit_with_arbiters — multi-sig escrow creation API (Issue #14)
+// ============================================================================
+
+#[test]
+fn test_deposit_with_arbiters_creates_escrow_and_is_disputable() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let a1 = Address::generate(&env);
+    let a2 = Address::generate(&env);
+    let a3 = Address::generate(&env);
+    let amount: i128 = 3000;
+    let salt = Bytes::from_slice(&env, b"multisig_creation");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let mut arbiters = Vec::new(&env);
+    arbiters.push_back(a1.clone());
+    arbiters.push_back(a2.clone());
+    arbiters.push_back(a3.clone());
+
+    let commitment = client.deposit_with_arbiters(&token, &amount, &owner, &salt, &0, &arbiters, &2);
+
+    // Escrow exists and is Pending.
+    assert_eq!(client.get_commitment_state(&commitment), Some(EscrowStatus::Pending));
+}
+
+#[test]
+fn test_deposit_with_arbiters_rejects_zero_threshold() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"zero_threshold");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let mut arbiters = Vec::new(&env);
+    arbiters.push_back(Address::generate(&env));
+
+    let result = client.try_deposit_with_arbiters(&token, &amount, &owner, &salt, &0, &arbiters, &0);
+    assert_eq!(result.unwrap_err().unwrap(), crate::errors:: RustAcademyError::InvalidThreshold);
+}
+
+#[test]
+fn test_deposit_with_arbiters_rejects_threshold_exceeding_count() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"exceed_threshold");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let mut arbiters = Vec::new(&env);
+    arbiters.push_back(Address::generate(&env));
+    arbiters.push_back(Address::generate(&env));
+
+    // threshold=3 exceeds arbiter count=2
+    let result = client.try_deposit_with_arbiters(&token, &amount, &owner, &salt, &0, &arbiters, &3);
+    assert_eq!(result.unwrap_err().unwrap(), crate::errors:: RustAcademyError::InvalidThreshold);
+}
+
+#[test]
+fn test_deposit_with_arbiters_rejects_duplicate_arbiters() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"dup_arbiter");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let dup = Address::generate(&env);
+    let mut arbiters = Vec::new(&env);
+    arbiters.push_back(dup.clone());
+    arbiters.push_back(dup.clone()); // duplicate
+
+    let result = client.try_deposit_with_arbiters(&token, &amount, &owner, &salt, &0, &arbiters, &1);
+    assert_eq!(result.unwrap_err().unwrap(), crate::errors:: RustAcademyError::DuplicateArbiter);
+}
+
+#[test]
+fn test_deposit_with_arbiters_rejects_empty_arbiters() {
+    let (env, client) = setup();
+    let token = create_test_token(&env);
+    let owner = Address::generate(&env);
+    let amount: i128 = 1000;
+    let salt = Bytes::from_slice(&env, b"empty_arbiters");
+
+    let token_client = token::StellarAssetClient::new(&env, &token);
+    token_client.mint(&owner, &amount);
+
+    let arbiters: Vec<Address> = Vec::new(&env);
+
+    let result = client.try_deposit_with_arbiters(&token, &amount, &owner, &salt, &0, &arbiters, &1);
+    assert_eq!(result.unwrap_err().unwrap(), crate::errors:: RustAcademyError::InvalidThreshold);
+}
+
+// ============================================================================
 // Multi-Sig Arbiter Tests
 // ============================================================================
 

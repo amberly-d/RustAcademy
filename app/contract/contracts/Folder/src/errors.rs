@@ -63,6 +63,13 @@ pub enum RustAcademyError {
     InsufficientVotes = 321,
     /// Fee ratios or denominators are invalid for the configured payout split.
     InvalidFeeConfiguration = 322,
+    /// Dispute resolution threshold is zero, exceeds arbiter count, or the
+    /// arbiters list is empty.
+    InvalidThreshold = 326,
+    /// The arbiters list contains a duplicate address.
+    DuplicateArbiter = 327,
+    /// The arbiters list exceeds the maximum allowed count.
+    TooManyArbiters = 328,
     /// The configured fee split exceeds the available fee budget.
     FeeSplitExceedsTotal = 323,
     /// Dispute resolution timeout has not yet elapsed.

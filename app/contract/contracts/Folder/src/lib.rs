@@ -453,6 +453,42 @@ impl RustAcademyContract {
         )
     }
 
+    /// Create a multi-signature (M-of-N) arbitration escrow.
+    ///
+    /// Like `deposit`, but accepts a list of arbiters and a threshold: `threshold`
+    /// of the `arbiters` must vote to resolve any dispute.
+    ///
+    /// # Arguments
+    /// * `token` - Token contract address
+    /// * `amount` - Amount to escrow (must be > 0)
+    /// * `owner` - Depositor address (must authorize)
+    /// * `salt` - Uniqueness salt (max 1024 bytes)
+    /// * `timeout_secs` - Seconds until expiry; 0 = no expiry
+    /// * `arbiters` - Non-empty list of arbiter addresses (max 10, no duplicates)
+    /// * `threshold` - Number of arbiter votes required to resolve (1 ≤ threshold ≤ len(arbiters))
+    ///
+    /// # Errors
+    /// * `InvalidAmount` - Amount is zero or negative
+    /// * `InvalidSalt` - Salt exceeds 1024 bytes
+    /// * `InvalidThreshold` - Threshold is 0, exceeds arbiter count, or arbiters is empty
+    /// * `DuplicateArbiter` - The arbiters list contains duplicate addresses
+    /// * `TooManyArbiters` - More than 10 arbiters provided
+    /// * `CommitmentAlreadyExists` - An escrow with the same commitment already exists
+    #[allow(clippy::too_many_arguments)]
+    pub fn deposit_with_arbiters(
+        env: Env,
+        token: Address,
+        amount: i128,
+        owner: Address,
+        salt: Bytes,
+        timeout_secs: u64,
+        arbiters: Vec<Address>,
+        threshold: u32,
+    ) -> Result<BytesN<32>, RustAcademyError> {
+        admin::guard_deposit(&env, PauseFlag::Deposit)?;
+        escrow::deposit_with_arbiters(&env, token, amount, owner, salt, timeout_secs, arbiters, threshold)
+    }
+
     /// Make a partial payment towards an existing escrow.
     ///
     /// Transfers `payment_amount` from `payer` to the contract and increments the
