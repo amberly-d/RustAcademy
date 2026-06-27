@@ -12,6 +12,26 @@
 export const MAX_LEVEL = 50;
 
 /**
+ * XP awarded for reaching a streak milestone (e.g., every 7 days).
+ */
+export const STREAK_MILESTONE_XP = 500;
+
+/**
+ * How many days constitute a streak milestone.
+ */
+export const STREAK_MILESTONE_DAYS = 7;
+
+/**
+ * XP awarded for reaching a level milestone (e.g., every 5 levels).
+ */
+export const LEVEL_MILESTONE_XP = 1000;
+
+/**
+ * The level interval for milestones (e.g., levels 5, 10, 15...).
+ */
+export const LEVEL_MILESTONE_INTERVAL = 5;
+
+/**
  * Returns the total XP required to reach the beginning of `level`.
  * Level 1 starts at 0 XP; each subsequent level requires 100 * n^2 XP
  * where n is the level number.

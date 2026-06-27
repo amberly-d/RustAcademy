@@ -8,6 +8,10 @@ import {
   xpToNextLevel,
   PRIZE_POOL_DEFAULT_CURRENCY,
   PRIZE_DISTRIBUTION_PERCENTAGES,
+  STREAK_MILESTONE_DAYS,
+  STREAK_MILESTONE_XP,
+  LEVEL_MILESTONE_INTERVAL,
+  LEVEL_MILESTONE_XP,
 } from './rewards.constants';
 
 // ---------------------------------------------------------------------------
@@ -178,6 +182,10 @@ describe('RewardsService', () => {
         xpToNextLevel: 100,
         currentLevelThreshold: 0,
         nextLevelThreshold: 100,
+        streak: {
+          currentStreak: 0,
+          lastActivityDate: null,
+        },
       });
     });
 
@@ -417,6 +425,114 @@ describe('RewardsService', () => {
       const second = service.distributePrizes();
       expect(second.id).toBe(first.id);
       expect(second.distributedAt).toEqual(first.distributedAt);
+  // ---- recordActivity ----
+
+  describe('recordActivity(userId, date, xpAmount)', () => {
+    const USER = 'activity-user';
+    const BASE_DATE = new Date('2023-01-01T12:00:00Z');
+
+    beforeEach(() => {
+      service.resetXp(USER);
+    });
+
+    it('records initial activity for a new user', () => {
+      const prog = service.recordActivity(USER, BASE_DATE, 100);
+      expect(prog.xp).toBe(100);
+      expect(prog.streak.currentStreak).toBe(1);
+      expect(prog.streak.lastActivityDate).toBe(BASE_DATE.toISOString());
+    });
+
+    it('increases streak for consecutive days', () => {
+      service.recordActivity(USER, BASE_DATE, 10);
+      const nextDay = new Date(BASE_DATE.getTime() + 24 * 60 * 60 * 1000);
+      const prog = service.recordActivity(USER, nextDay, 10);
+
+      expect(prog.streak.currentStreak).toBe(2);
+      expect(prog.streak.lastActivityDate).toBe(nextDay.toISOString());
+    });
+
+    it('does not increase streak for same-day activity', () => {
+      service.recordActivity(USER, BASE_DATE, 10);
+      const sameDay = new Date(BASE_DATE.getTime() + 1 * 60 * 60 * 1000); // 1 hour later
+      const prog = service.recordActivity(USER, sameDay, 10);
+
+      expect(prog.streak.currentStreak).toBe(1);
+      expect(prog.streak.lastActivityDate).toBe(sameDay.toISOString());
+    });
+
+    it('resets streak if there is a gap of more than one day', () => {
+      service.recordActivity(USER, BASE_DATE, 10);
+      const gapDay = new Date(BASE_DATE.getTime() + 2 * 24 * 60 * 60 * 1000); // 2 days later
+      const prog = service.recordActivity(USER, gapDay, 10);
+
+      expect(prog.streak.currentStreak).toBe(1);
+      expect(prog.streak.lastActivityDate).toBe(gapDay.toISOString());
+    });
+
+    it('awards streak milestone XP', () => {
+      // Set streak to STREAK_MILESTONE_DAYS - 1
+      for (let i = 0; i < STREAK_MILESTONE_DAYS - 1; i++) {
+        const d = new Date(BASE_DATE.getTime() + i * 24 * 60 * 60 * 1000);
+        service.recordActivity(USER, d, 10);
+      }
+      
+      // The next day should hit the milestone
+      const milestoneDay = new Date(BASE_DATE.getTime() + (STREAK_MILESTONE_DAYS - 1) * 24 * 60 * 60 * 1000);
+      const prog = service.recordActivity(USER, milestoneDay, 10);
+
+      // Streak is now STREAK_MILESTONE_DAYS
+      expect(prog.streak.currentStreak).toBe(STREAK_MILESTONE_DAYS);
+      
+      // XP should be: (base_xp * count) + STREAK_MILESTONE_XP
+      // 10 * STREAK_MILESTONE_DAYS + STREAK_MILESTONE_XP
+      expect(prog.xp).toBe(10 * STREAK_MILESTONE_DAYS + STREAK_MILESTONE_XP);
+    });
+
+    it('awards level milestone XP', () => {
+      // Reach level 5 (milestone)
+      // xpThresholdForLevel(5) = 100 * 4^2 = 1600
+      // We use recordActivity to ensure we are testing the logic
+      
+      // First, get to level 4
+      const level4Xp = xpThresholdForLevel(4);
+      service.recordActivity(USER, BASE_DATE, level4Xp);
+      
+      // Now add enough XP to cross level 5
+      const prog = service.recordActivity(USER, BASE_DATE, 1000); // 900 + 1000 = 1900, which is level 5 or higher
+      
+      expect(prog.level).toBeGreaterThanOrEqual(5);
+      // It should have awarded LEVEL_MILESTONE_XP
+      // Total XP = level4Xp + 1000 + LEVEL_MILESTONE_XP
+      expect(prog.xp).toBe(level4Xp + 1000 + LEVEL_MILESTONE_XP);
+    });
+
+    it('awards multiple level milestones if crossing several at once', () => {
+      // Reach level 1 (0 XP)
+      // Add a huge amount of XP to jump to level 11 (milestones at 5 and 10)
+      const hugeXp = xpThresholdForLevel(11);
+      const prog = service.recordActivity(USER, BASE_DATE, hugeXp);
+
+      expect(prog.level).toBeGreaterThanOrEqual(11);
+      // Total XP = hugeXp + 2 * LEVEL_MILESTONE_XP
+      expect(prog.xp).toBe(hugeXp + 2 * LEVEL_MILESTONE_XP);
+    });
+  });
+
+  // ---- resetXp ----
+
+  describe('resetXp(userId)', () => {
+    const USER = 'reset-user';
+
+    beforeEach(() => {
+      service.recordActivity(USER, new Date(), 100);
+    });
+
+    it('resets XP to 0 and clears streak', () => {
+      service.resetXp(USER);
+      const prog = service.getUserProgression(USER);
+      expect(prog.xp).toBe(0);
+      expect(prog.streak.currentStreak).toBe(0);
+      expect(prog.streak.lastActivityDate).toBeNull();
     });
   });
 });

@@ -8,6 +8,10 @@ import {
   PRIZE_DISTRIBUTION_PERCENTAGES,
   PRIZE_POOL_DEFAULT_CURRENCY,
   PRIZE_POOL_DEFAULT_AMOUNT,
+  STREAK_MILESTONE_DAYS,
+  STREAK_MILESTONE_XP,
+  LEVEL_MILESTONE_INTERVAL,
+  LEVEL_MILESTONE_XP,
 } from './rewards.constants';
 import type {
   LevelThreshold,
@@ -42,6 +46,11 @@ interface PrizePoolData {
 }
 
 const prizePoolStore = new Map<string, PrizePoolData>();
+ * In-memory streak store used until a persistence layer is wired in.
+ *
+ * Keyed by userId → streak information.
+ */
+const streakStore = new Map<string, { currentStreak: number; lastActivityDate: Date | null }>();
 
 /**
  * Deterministic level title names for display purposes.
@@ -126,6 +135,11 @@ export class RewardsService {
     const nextThreshold =
       level < MAX_LEVEL ? xpThresholdForLevel(level + 1) : null;
 
+    const streakData = streakStore.get(userId) ?? {
+      currentStreak: 0,
+      lastActivityDate: null,
+    };
+
     return {
       userId,
       xp,
@@ -133,6 +147,12 @@ export class RewardsService {
       xpToNextLevel: remaining,
       currentLevelThreshold: xpThresholdForLevel(level),
       nextLevelThreshold: nextThreshold,
+      streak: {
+        currentStreak: streakData.currentStreak,
+        lastActivityDate: streakData.lastActivityDate
+          ? streakData.lastActivityDate.toISOString()
+          : null,
+      },
     };
   }
 
@@ -154,10 +174,84 @@ export class RewardsService {
   }
 
   /**
+   * Records a user activity, updates their streak, and awards XP.
+   * Can also award bonus XP for streak and level milestones.
+   *
+   * @param userId     Target user
+   * @param date       Date of activity
+   * @param xpAmount   Base XP to award
+   * @returns          Updated progression data
+   */
+  recordActivity(userId: string, date: Date, xpAmount: number): UserProgressionResponse {
+    if (xpAmount <= 0) {
+      throw new Error('XP amount must be a positive integer.');
+    }
+
+    // 1. Update Streak
+    const streakData = streakStore.get(userId) ?? {
+      currentStreak: 0,
+      lastActivityDate: null,
+    };
+    let streakBonusXp = 0;
+
+    if (streakData.lastActivityDate) {
+      const lastDate = new Date(streakData.lastActivityDate);
+
+      const today = new Date(date.getTime());
+      today.setHours(0, 0, 0, 0);
+      const last = new Date(lastDate.getTime());
+      last.setHours(0, 0, 0, 0);
+
+      const diffDays = Math.round(
+        (today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24),
+      );
+
+      if (diffDays === 1) {
+        streakData.currentStreak += 1;
+      } else if (diffDays > 1) {
+        streakData.currentStreak = 1;
+      }
+      // if diffDays === 0, do nothing to currentStreak
+    } else {
+      streakData.currentStreak = 1;
+    }
+
+    streakData.lastActivityDate = date;
+    streakStore.set(userId, streakData);
+
+    // Check streak milestone
+    if (
+      streakData.currentStreak > 0 &&
+      streakData.currentStreak % STREAK_MILESTONE_DAYS === 0
+    ) {
+      streakBonusXp = STREAK_MILESTONE_XP;
+    }
+
+    // 2. Update XP
+    const currentXp = xpStore.get(userId) ?? 0;
+    const oldLevel = levelForXp(currentXp);
+    const newXpBeforeLevelMilestone = currentXp + xpAmount + streakBonusXp;
+    const newLevel = levelForXp(newXpBeforeLevelMilestone);
+
+    // Check level milestone
+    let levelBonusXp = 0;
+    for (let m = LEVEL_MILESTONE_INTERVAL; m <= MAX_LEVEL; m += LEVEL_MILESTONE_INTERVAL) {
+      if (oldLevel < m && newLevel >= m) {
+        levelBonusXp += LEVEL_MILESTONE_XP;
+      }
+    }
+
+    xpStore.set(userId, newXpBeforeLevelMilestone + levelBonusXp);
+
+    return this.getUserProgression(userId);
+  }
+
+  /**
    * Resets a user's XP to zero (useful for testing / admin tooling).
    */
   resetXp(userId: string): void {
     xpStore.set(userId, 0);
+    streakStore.delete(userId);
   }
 
   // -------------------------------------------------------------------------

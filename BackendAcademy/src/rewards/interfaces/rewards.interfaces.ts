@@ -11,6 +11,16 @@ export interface LevelThreshold {
 }
 
 /**
+ * Information about a user's current activity streak.
+ */
+export interface StreakInfo {
+  /** Number of consecutive days of activity */
+  currentStreak: number;
+  /** The last date on which the user was active (ISO 8601 format) */
+  lastActivityDate: string | null;
+}
+
+/**
  * Response shape for GET /rewards/progression/:userId
  */
 export interface UserProgressionResponse {
@@ -22,6 +32,8 @@ export interface UserProgressionResponse {
   currentLevelThreshold: number;
   /** XP required to enter the next level (null at max level) */
   nextLevelThreshold: number | null;
+  /** User's current activity streak information */
+  streak: StreakInfo;
 }
 
 /**
