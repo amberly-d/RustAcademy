@@ -1,10 +1,17 @@
 import { Module } from '@nestjs/common';
 import { SubmissionController } from './submission.controller';
 import { SubmissionService } from './submission.service';
+import { TutorReviewController } from './tutor-review.controller';
+import { TutorReviewService } from './tutor-review.service';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  controllers: [SubmissionController],
-  providers: [SubmissionService],
-  exports: [SubmissionService],
+  imports: [
+    // Provides JwtService for JwtTutorGuard
+    AuthModule,
+  ],
+  controllers: [SubmissionController, TutorReviewController],
+  providers: [SubmissionService, TutorReviewService],
+  exports: [SubmissionService, TutorReviewService],
 })
 export class SubmissionModule {}
