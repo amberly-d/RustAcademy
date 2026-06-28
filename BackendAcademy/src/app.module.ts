@@ -9,6 +9,7 @@ import { SecurityModule } from './security/security.module';
 import { SubmissionModule } from './submissions/submission.module';
 import { TutorProfileModule } from './users/tutor-profile.module';
 import { UserProfileModule } from './users/user-profile.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UserProfileModule } from './users/user-profile.module';
     RewardsModule,
     SecurityModule,
     ChallengesModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [
