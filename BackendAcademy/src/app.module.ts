@@ -10,6 +10,7 @@ import { SubmissionModule } from './submissions/submission.module';
 import { TutorProfileModule } from './users/tutor-profile.module';
 import { UserProfileModule } from './users/user-profile.module';
 import { AiModule } from './ai/ai.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AiModule } from './ai/ai.module';
     SecurityModule,
     ChallengesModule,
     AiModule,
+    LeaderboardModule,
   ],
   controllers: [AppController],
   providers: [
