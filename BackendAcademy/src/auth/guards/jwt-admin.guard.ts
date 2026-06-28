@@ -11,15 +11,15 @@ import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { UserRole } from '../enums/user-role.enum';
 
 /**
- * Protects routes that require a valid tutor JWT.
+ * Protects routes that require a valid admin JWT.
  *
  * Expects an `Authorization: Bearer <token>` header.
- * The token payload must contain `role: "tutor"`.
+ * The token payload must contain `role: "admin"`.
  *
- * On success, attaches `request.tutor` with the decoded payload.
+ * On success, attaches `request.user` with the decoded payload.
  */
 @Injectable()
-export class JwtTutorGuard implements CanActivate {
+export class JwtAdminGuard implements CanActivate {
   constructor(private readonly jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -43,15 +43,15 @@ export class JwtTutorGuard implements CanActivate {
       });
     }
 
-    if (payload.role !== UserRole.TUTOR) {
+    if (payload.role !== UserRole.ADMIN) {
       throw new ForbiddenException({
-        error: 'TUTOR_ROLE_REQUIRED',
-        message: 'Only tutors are allowed to access this resource',
+        error: 'ADMIN_ROLE_REQUIRED',
+        message: 'Only admins are allowed to access this resource',
       });
     }
 
-    // Attach decoded tutor identity for downstream handlers
-    (request as Request & { tutor: JwtPayload }).tutor = payload;
+    // Attach decoded user identity for downstream handlers
+    (request as Request & { user: JwtPayload }).user = payload;
     return true;
   }
 

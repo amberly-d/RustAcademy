@@ -12,6 +12,7 @@ import { UserProfileModule } from './users/user-profile.module';
 import { AiModule } from './ai/ai.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { SocialModule } from './social/social.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     AiModule,
     LeaderboardModule,
     AnalyticsModule,
+    SocialModule,
   ],
   controllers: [AppController],
   providers: [

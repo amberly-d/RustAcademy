@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { RewardsController } from './rewards.controller';
 import { RewardsService } from './rewards.service';
+import { StreakController } from './streak.controller';
+import { StreakService } from './streak.service';
 
 /**
  * RewardsModule
@@ -9,8 +11,8 @@ import { RewardsService } from './rewards.service';
  * Import this module in AppModule to enable the /rewards/* endpoints.
  */
 @Module({
-  controllers: [RewardsController],
-  providers: [RewardsService],
-  exports: [RewardsService],
+  controllers: [RewardsController, StreakController],
+  providers: [RewardsService, StreakService],
+  exports: [RewardsService, StreakService],
 })
 export class RewardsModule {}
