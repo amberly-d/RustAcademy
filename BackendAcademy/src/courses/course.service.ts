@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { CourseEntity } from './course.entity';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
-import { CourseMetadataDto } from './dto/course-metadata.dto';
 
 @Injectable()
 export class CourseService {
@@ -19,22 +18,6 @@ export class CourseService {
 
   async findAll(): Promise<CourseEntity[]> {
     return Array.from(this.courses.values()).filter(c => c.isActive);
-  }
-
-  async findMetadata(): Promise<CourseMetadataDto[]> {
-    return Array.from(this.courses.values())
-      .filter(c => c.isActive)
-      .map(course => ({
-        id: course.id,
-        title: course.title,
-        description: course.description,
-        level: course.level,
-        order: course.order,
-        learningPathId: course.learningPathId,
-        duration: course.duration,
-        xpReward: course.xpReward,
-        skills: course.skills,
-      }));
   }
 
   async findByLevel(level: string): Promise<CourseEntity[]> {

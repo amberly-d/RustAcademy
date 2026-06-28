@@ -17,11 +17,6 @@ export class CourseController {
     return this.courseService.findAll();
   }
 
-  @Get('metadata')
-  async findMetadata() {
-    return this.courseService.findMetadata();
-  }
-
   @Get('level/:level')
   async findByLevel(@Param('level') level: string) {
     return this.courseService.findByLevel(level);
