@@ -67,6 +67,24 @@ export class SocialController {
     return this.socialService.flagPost(postId, userId);
   }
 
+  @Post('posts/:postId/like')
+  @HttpCode(HttpStatus.OK)
+  likePost(@Param('postId') postId: string): SocialPost {
+    return this.socialService.likePost(postId);
+  }
+
+  @Post('posts/:postId/comment')
+  @HttpCode(HttpStatus.OK)
+  commentOnPost(@Param('postId') postId: string): SocialPost {
+    return this.socialService.commentOnPost(postId);
+  }
+
+  @Post('posts/:postId/repost')
+  @HttpCode(HttpStatus.OK)
+  repostPost(@Param('postId') postId: string): SocialPost {
+    return this.socialService.repostPost(postId);
+  }
+
   @Delete('posts/:postId')
   @HttpCode(HttpStatus.NO_CONTENT)
   deletePost(@Param('postId') postId: string): void {

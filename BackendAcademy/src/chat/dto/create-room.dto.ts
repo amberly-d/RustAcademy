@@ -1,5 +1,6 @@
 export class CreateRoomDto {
   name?: string;
-  type: 'direct' | 'room';
+  type: 'direct' | 'room' | 'course';
   participants: string[];
+  courseId?: string;
 }

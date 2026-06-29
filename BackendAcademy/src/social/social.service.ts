@@ -29,6 +29,7 @@ export class SocialService {
       moderationStatus: 'pending',
       likes: 0,
       comments: 0,
+      reposts: 0,
     };
 
     this.posts.set(post.id, post);
@@ -229,6 +230,30 @@ export class SocialService {
     );
   }
 
+  likePost(postId: string): SocialPost {
+    const post = this.getPostById(postId);
+    post.likes++;
+    post.updatedAt = new Date();
+    this.posts.set(postId, post);
+    return post;
+  }
+
+  commentOnPost(postId: string): SocialPost {
+    const post = this.getPostById(postId);
+    post.comments++;
+    post.updatedAt = new Date();
+    this.posts.set(postId, post);
+    return post;
+  }
+
+  repostPost(postId: string): SocialPost {
+    const post = this.getPostById(postId);
+    post.reposts++;
+    post.updatedAt = new Date();
+    this.posts.set(postId, post);
+    return post;
+  }
+
   private generateId(): string {
     return `post_${this.idCounter++}`;
   }
@@ -291,4 +316,5 @@ export class SocialService {
     const normalized = tag.trim().toLowerCase();
     return normalized.startsWith('#') ? normalized.slice(1) : normalized;
   }
+}
 }

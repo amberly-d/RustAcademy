@@ -12,6 +12,7 @@ export interface SocialPost {
   moderationReason?: string;
   likes: number;
   comments: number;
+  reposts: number;
 }
 
 export interface CreateSocialPostDto {

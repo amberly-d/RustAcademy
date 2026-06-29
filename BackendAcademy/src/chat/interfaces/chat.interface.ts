@@ -1,4 +1,4 @@
-export type ChatType = 'direct' | 'room';
+export type ChatType = 'direct' | 'room' | 'course';
 
 export interface ChatRoom {
   id: string;
@@ -6,6 +6,7 @@ export interface ChatRoom {
   type: ChatType;
   participants: string[];
   createdAt: Date;
+  courseId?: string;
 }
 
 export interface Message {
