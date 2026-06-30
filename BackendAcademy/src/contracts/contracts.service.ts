@@ -1,71 +1,44 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
+import { GovernanceProposal } from './interfaces/contracts.interface';
 
 @Injectable()
-export class ContractHealthService {
-  private readonly logger = new Logger(ContractHealthService.name);
-  private readonly sorobanUrl: string;
-  private readonly timeoutMs: number;
+export class ContractsService {
+  private readonly proposals = new Map<string, GovernanceProposal>();
 
-  constructor(private readonly configService: ConfigService) {
-    this.sorobanUrl =
-      this.configService.get<string>('SOROBAN_RPC_URL') ??
-      this.configService.get<string>('stellar.sorobanRpcUrl') ??
-      'https://soroban-testnet.stellar.org';
-    this.timeoutMs = Number(
-      this.configService.get<string>('SOROBAN_RPC_TIMEOUT_MS') ?? 5_000,
-    );
+  createProposal(title: string, description: string, proposer: string) {
+    const proposal: GovernanceProposal = {
+      id: `prop_${uuidv4()}`,
+      title,
+      description,
+      proposer,
+      yesVotes: 0,
+      noVotes: 0,
+      status: 'active',
+      createdAt: new Date(),
+    };
+    this.proposals.set(proposal.id, proposal);
+    return { success: true, message: 'Proposal created', data: proposal };
   }
 
-  async check(): Promise<{
-    status: 'ok' | 'unhealthy';
-    details: {
-      sorobanRpc: {
-        status: 'up' | 'down';
-        url: string;
-        latencyMs?: number;
-        error?: string;
-      };
-    };
-  }> {
-    const result = await this.checkSorobanRpc();
-    return {
-      status: result.status === 'up' ? 'ok' : 'unhealthy',
-      details: {
-        sorobanRpc: result,
-      },
-    };
+  getProposal(id: string) {
+    const proposal = this.proposals.get(id);
+    if (!proposal) throw new NotFoundException('Proposal not found');
+    return proposal;
   }
 
-  private async checkSorobanRpc(): Promise<{
-    status: 'up' | 'down';
-    url: string;
-    latencyMs?: number;
-    error?: string;
-  }> {
-    const start = Date.now();
-    const url = this.sorobanUrl;
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Soroban RPC timeout')), this.timeoutMs),
-    );
+  listProposals() {
+    return Array.from(this.proposals.values());
+  }
 
-    try {
-      const response = await Promise.race([
-        fetch(url, { method: 'GET' }),
-        timeoutPromise,
-      ]);
-
-      if (!response.ok) {
-        throw new Error(`Unexpected HTTP status ${response.status}`);
-      }
-
-      const latencyMs = Date.now() - start;
-      return { status: 'up', url, latencyMs };
-    } catch (error) {
-      const err = error instanceof Error ? error : new Error('unknown error');
-      const message = err.message ?? 'unknown error';
-      this.logger.warn(`Soroban RPC health failed: ${message}`);
-      return { status: 'down', url, error: message };
+  castVote(proposalId: string, userId: string, vote: 'yes' | 'no') {
+    const proposal = this.proposals.get(proposalId);
+    if (!proposal) throw new NotFoundException('Proposal not found');
+    if (proposal.status !== 'active') {
+      return { success: false, message: 'Proposal is no longer active' };
     }
+    if (vote === 'yes') proposal.yesVotes++;
+    else proposal.noVotes++;
+    return { success: true, message: `Vote cast as ${vote}`, data: proposal };
   }
 }

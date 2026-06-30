@@ -9,6 +9,7 @@ import { RewardsModule } from './rewards/rewards.module';
 import { SecurityModule } from './security/security.module';
 import { SubmissionModule } from './submissions/submission.module';
 import { TutorProfileModule } from './users/tutor-profile.module';
+import { ContractsModule } from './contracts/contracts.module';
 import { UserProfileModule } from './users/user-profile.module';
 import { AiModule } from './ai/ai.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';

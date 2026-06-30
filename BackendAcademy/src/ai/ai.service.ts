@@ -3,11 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import { CreateChatRequestDto } from './dto/create-chat-request.dto';
 import { GetHintDto } from './dto/get-hint.dto';
 import { PreScoreDto } from './dto/pre-score.dto';
+import { VoiceInteractionDto } from './dto/voice-interaction.dto';
+import { TtsRequestDto } from './dto/tts-request.dto';
 import {
   AiChatResponse,
+  AiChatRecord,
   AiHintResponse,
   ChatMessage,
   Hint,
+  VoiceInteractionResponse,
+  TtsResponse,
 } from './interfaces/ai.interface';
 import { PreScoreResult } from './interfaces/pre-score.interface';
 import { AiProvider } from './interfaces/ai-provider.interface';
@@ -18,6 +23,7 @@ export const AI_PROVIDER = 'AI_PROVIDER';
 @Injectable()
 export class AiService {
   private chatHistory: Map<string, ChatMessage[]> = new Map();
+  private chatRecords: Map<string, AiChatRecord> = new Map();
   private hints: Map<string, Hint[]> = new Map();
 
   constructor(
@@ -149,6 +155,37 @@ export class AiService {
     return this.chatHistory.get(userId) || [];
   }
 
+  getChatRecord(sessionId: string): AiChatRecord | null {
+    return this.chatRecords.get(sessionId) ?? null;
+  }
+
+  listChatRecords(userId: string): AiChatRecord[] {
+    return Array.from(this.chatRecords.values()).filter((r) => r.userId === userId);
+  }
+
+  async processVoice(dto: VoiceInteractionDto) {
+    const transcription = `[Transcribed: ${dto.audioData.slice(0, 50)}...]`;
+    const response: VoiceInteractionResponse = {
+      transcription,
+      confidence: 0.85,
+      processedAt: new Date(),
+    };
+    return response;
+  }
+
+  async generateTts(dto: TtsRequestDto) {
+    const response: TtsResponse = {
+      audioData: Buffer.from(dto.text).toString('base64'),
+      format: 'audio/wav',
+      durationMs: dto.text.length * 60,
+    };
+    return response;
+  }
+
+  private generateAiResponse(
+    userMessage: string,
+    context?: Record<string, any>,
+  ): string {
   private fallbackResponse(userMessage: string): string {
     const responses = [
       "That's a great question! Let me help you work through that. Based on what you've shared, I think the first thing you should understand is the core concept behind the problem.",
