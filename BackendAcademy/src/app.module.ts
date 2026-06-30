@@ -18,8 +18,11 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { LessonModule } from './lessons/lesson.module';
 import { TaskModule } from './tasks/task.module';
 import { JobsModule } from './jobs/jobs.module';
+import { ProgressModule } from './courses/progress/progress.module';
 import { AppConfigModule } from './config/config.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { PathfindingModule } from './pathfinding/pathfinding.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { SearchModule } from './search/search.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SessionsModule } from './sessions/sessions.module';
@@ -49,6 +52,9 @@ import { SessionsModule } from './sessions/sessions.module';
     LessonModule,
     TaskModule,
     JobsModule,
+    PathfindingModule,
+    MonitoringModule,
+    ProgressModule,
     SearchModule,
     PaymentsModule,
     SessionsModule,
