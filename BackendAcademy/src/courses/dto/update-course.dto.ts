@@ -43,4 +43,12 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  changeNote?: string;
+
+  @IsOptional()
+  @IsString()
+  revisionAuthor?: string;
 }
