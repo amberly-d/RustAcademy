@@ -19,6 +19,8 @@ import { TaskModule } from './tasks/task.module';
 import { LoggingModule } from './logging/logging.module';
 import { AppConfigModule } from './config/config.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { SearchModule } from './search/search.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { ContractsModule } from './contracts/contracts.module';
     LessonModule,
     TaskModule,
     LoggingModule,
+    SearchModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [
