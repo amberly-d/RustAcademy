@@ -449,7 +449,7 @@ fn test_cleanup_stealth_escrow_removes_terminal_entry() {
         let entry = StealthEscrowEntry {
             token: Address::generate(&env),
             amount_due: 500,
-            amount_paid: 500,
+            amount_paid: 0, // Terminal entries must have zero balance (INV-S-1)
             eph_pub: BytesN::from_array(&env, &[3u8; 32]),
             status: EscrowStatus::Spent,
             created_at: 0,

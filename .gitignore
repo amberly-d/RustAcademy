@@ -4,6 +4,11 @@
 /build
 .jest-cache/
 
+# Rust
+**/target/
+**/test_snapshots/**/*.json
+!**/test_snapshots/README.md
+
 # Logs
 logs
 *.log
@@ -26,6 +31,12 @@ package-json.lock
 # Tests
 /coverage
 /.nyc_output
+**/__snapshots__/*.snap
+
+# Test snapshots
+**/__snapshots__/*
+*.snap
+test_snapshots/
 
 # IDEs and editors
 /.idea

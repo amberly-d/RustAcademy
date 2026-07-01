@@ -7,12 +7,18 @@ license = "MIT OR Apache-2.0"
 authors = ["RustAcademy Team"]
 repository = "https://github.com/ RustAcademy/app"
 readme = "README.md"
+build = "build.rs"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "23"
+hex = "0.4"
+
+[build-dependencies]
+blake3 = "1.5"
+serde_json = "1.0"
 
 [dev-dependencies]
 soroban-sdk = { version = "23", features = ["testutils"] }

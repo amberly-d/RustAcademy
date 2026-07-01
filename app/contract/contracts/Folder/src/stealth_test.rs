@@ -101,9 +101,10 @@ fn test_stealth_full_flow() {
     let ok = client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
     assert!(ok);
 
+    // Entry is now cleaned up after successful withdrawal (INV-S-4)
     assert_eq!(
         client.get_stealth_status(&stealth_address),
-        Some(EscrowStatus::Spent)
+        None
     );
 
     let token_client = token::Client::new(&env, &token);
@@ -180,7 +181,7 @@ fn test_register_duplicate_stealth_address_fails() {
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err,  RustAcademyError::StealthAddressAlreadyUsed);
+    assert_eq!(err, RustAcademyError::StealthAddressAlreadyUsed);
 }
 
 /// Withdrawing with wrong spend_pub must fail.
@@ -219,7 +220,7 @@ fn test_stealth_withdraw_wrong_spend_pub_fails() {
     assert_eq!(err,  RustAcademyError::StealthAddressMismatch);
 }
 
-/// Double withdrawal must fail with AlreadySpent.
+/// Double withdrawal must fail with StealthEscrowNotFound (entry auto-cleaned).
 #[test]
 fn test_stealth_double_withdraw_fails() {
     let (env, client) = setup();
@@ -245,14 +246,16 @@ fn test_stealth_double_withdraw_fails() {
         0,
     ));
 
+    // First withdrawal succeeds and cleans up the entry
     client.stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address);
 
+    // Second withdrawal should fail - entry no longer exists
     let err = client
         .try_stealth_withdraw(&recipient, &eph_pub, &spend_pub, &stealth_address)
         .unwrap_err()
         .unwrap();
 
-    assert_eq!(err,  RustAcademyError::AlreadySpent);
+    assert_eq!(err, RustAcademyError::StealthEscrowNotFound);
 }
 
 /// Withdrawal after expiry must fail with EscrowExpired.

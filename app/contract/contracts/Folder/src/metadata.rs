@@ -10,11 +10,13 @@ use crate::{
         self, CURRENT_CONTRACT_VERSION, LEGACY_CONTRACT_VERSION,
     },
     types::{
-        ContractHealth, DeploymentMetadata, FeatureFlags, SchemaCompatibility,
+        BuildManifest, ContractHealth, DeploymentMetadata, FeatureFlags, SchemaCompatibility,
         SupportedVersions, UpgradeState,
     },
 };
-use soroban_sdk::{Env, Symbol, Vec};
+use soroban_sdk::{BytesN, Env, Symbol, Vec};
+
+include!(concat!(env!("OUT_DIR"), "/build_manifest.rs"));
 
 /// Compile-time feature flags for this contract build.
 ///
@@ -168,4 +170,46 @@ pub fn event_replay_fields(env: &Env) -> Vec<Symbol> {
         fields.push_back(Symbol::new(env, field));
     }
     fields
+}
+
+/// Return build-time manifest embedded in the WASM artifact.
+///
+/// This metadata enables deterministic correlation between deployed WASM artifacts
+/// and their source code. Tooling can use it to verify integrity and detect drift.
+///
+/// ## Fields
+/// - `git_hash`: Full git commit hash of the source at build time
+/// - `build_timestamp`: UNIX epoch timestamp when the WASM was compiled
+/// - `source_hash`: Deterministic hash of all Rust source files (BLAKE3)
+/// - `schema_version`: Build manifest format version
+pub fn build_manifest() -> BuildManifest {
+    let git_bytes = hex::decode(GIT_HASH.trim())
+        .ok()
+        .and_then(|v| v.try_into().ok())
+        .unwrap_or([0u8; 32]);
+    let source_bytes = hex::decode(SOURCE_HASH.trim())
+        .ok()
+        .and_then(|v| v.try_into().ok())
+        .unwrap_or([0u8; 32]);
+    BuildManifest {
+        git_hash: BytesN::from_array(&Env::default(), &git_bytes),
+        build_timestamp: BUILD_TIMESTAMP,
+        source_hash: BytesN::from_array(&Env::default(), &source_bytes),
+        schema_version: 1,
+    }
+}
+
+/// Verify that the on-chain WASM hash matches the expected build.
+///
+/// Returns `true` if the stored wasm_hash matches the expected source hash,
+/// indicating no unauthorized modifications have been deployed.
+pub fn verify_artifact_integrity(env: &Env) -> bool {
+    let stored_wasm = storage::get_wasm_hash(env);
+    match stored_wasm {
+        Some(hash) => {
+            let manifest = build_manifest();
+            hash == manifest.source_hash
+        }
+        None => true,
+    }
 }

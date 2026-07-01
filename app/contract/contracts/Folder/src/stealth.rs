@@ -18,7 +18,7 @@
 //! Sender (off-chain):
 //!   1. Generate ephemeral keypair (eph_priv, eph_pub).
 //!   2. shared_secret = KDF(eph_pub || scan_pub_key)     [SHA-256]
-//!   3. stealth_address = KDF(spend_pub_key || shared_secret)
+//!   3. stealth_address = KDF(spend_pub || shared_secret)
 //!   4. Call register_ephemeral_key(stealth_address, eph_pub, token, amount, timeout)
 //!      → funds locked under stealth_address commitment.
 //!
@@ -26,25 +26,36 @@
 //!   1. Scan chain for EphemeralKeyRegistered events.
 //!   2. For each event: shared_secret = KDF(eph_pub || scan_priv_key * G)
 //!      (simplified: KDF(eph_pub || scan_priv_key_bytes))
-//!   3. Recompute stealth_address = KDF(spend_pub_key || shared_secret).
+//!   3. Recompute stealth_address = KDF(spend_pub || shared_secret).
 //!   4. If stealth_address matches → funds are for me.
-//!   5. Derive stealth_priv_key = KDF(spend_priv_key || shared_secret).
+//!   5. Derive stealth_priv_key = KDF(spend_priv || shared_secret).
 //!   6. Call stealth_withdraw(stealth_address, eph_pub, amount, token)
 //!      → contract re-derives stealth_address and releases funds.
-//! ```
-//!
+//! ```n//!
 //! ## On-chain privacy guarantee
 //!
 //! The recipient's main public address (`spend_pub_key` / `scan_pub_key`) never
 //! appears in any transaction or event.  Only the one-time `stealth_address` and
 //! the sender's `eph_pub` are recorded on-chain.
+//!
+//! ## Invariants (Issue #432)
+//!
+//! The following invariants must hold at all times:
+//!
+//! - **INV-S-1**: Stealth withdrawal never leaves a stale entry with non-zero balance.
+//! - **INV-S-2**: Concurrent stealth deposit/withdrawal preserves total deposited value = escrow + stealth.
+//! - **INV-S-3**: Balance is validated before and after every state transition.
+//! - **INV-S-4**: Terminal stealth entries are immediately cleaned up after successful withdrawal.
 
 use soroban_sdk::{token, Address, Bytes, BytesN, Env};
 
 use crate::{
-    errors:: RustAcademyError,
+    errors::RustAcademyError,
     events,
-    storage::{get_stealth_escrow, put_stealth_escrow, remove_stealth_escrow},
+    storage::{
+        get_stealth_escrow, get_stealth_total_balance, put_stealth_escrow,
+        remove_stealth_escrow, require_stealth_balance_invariant,
+    },
     types::{EscrowStatus, StealthDepositParams, StealthEscrowEntry},
 };
 
@@ -137,10 +148,21 @@ pub fn register_ephemeral_key(
         return Err( RustAcademyError::StealthAddressAlreadyUsed);
     }
 
+    // Validate balance invariant before state transition
+    let balance_before = get_stealth_total_balance(env);
+
     // Transfer funds from sender to contract.
     let token_client = token::Client::new(env, &token);
     let contract_addr = env.current_contract_address();
     token_client.transfer(&sender, &contract_addr, &amount_paid);
+
+    // Validate balance invariant after transfer
+    // The contract should now hold `amount_paid` additional tokens
+    require_stealth_balance_invariant(
+        env,
+        balance_before.saturating_add(amount_paid),
+        false,
+    )?;
 
     let now = env.ledger().timestamp();
     let expires_at = if timeout_secs > 0 {
@@ -157,6 +179,7 @@ pub fn register_ephemeral_key(
         status: EscrowStatus::Pending,
         created_at: now,
         expires_at,
+        schema_version: crate::types::STEALTH_ESCROW_SCHEMA_VERSION,
     };
 
     put_stealth_escrow(env, &stealth_address, &entry);
@@ -193,24 +216,30 @@ pub fn register_ephemeral_key(
 /// - [`AlreadySpent`]           – escrow already withdrawn or refunded.
 /// - [`EscrowExpired`]          – escrow has passed its expiry.
 /// - [`StealthAddressMismatch`] – re-derived address does not match.
+/// - [`InternalError`]          – balance invariant violated after withdrawal.
 pub fn stealth_withdraw(
     env: &Env,
     recipient: Address,
     eph_pub: BytesN<32>,
     spend_pub: BytesN<32>,
     stealth_address: BytesN<32>,
-) -> Result<bool,  RustAcademyError> {
+) -> Result<bool, RustAcademyError> {
     recipient.require_auth();
 
-    let mut entry =
-        get_stealth_escrow(env, &stealth_address).ok_or( RustAcademyError::StealthEscrowNotFound)?;
+    let entry =
+        get_stealth_escrow(env, &stealth_address).ok_or(RustAcademyError::StealthEscrowNotFound)?;
 
     if entry.status != EscrowStatus::Pending {
-        return Err( RustAcademyError::AlreadySpent);
+        return Err(RustAcademyError::AlreadySpent);
     }
 
     if entry.expires_at > 0 && env.ledger().timestamp() >= entry.expires_at {
-        return Err( RustAcademyError::EscrowExpired);
+        return Err(RustAcademyError::EscrowExpired);
+    }
+
+    // Validate the stored amount before proceeding
+    if entry.amount_paid <= 0 {
+        return Err(RustAcademyError::InvalidAmount);
     }
 
     // Verify the caller knows the correct spend_pub for this stealth address.
@@ -218,12 +247,11 @@ pub fn stealth_withdraw(
     let expected_stealth = derive_stealth_address(env, &spend_pub, &shared_secret);
 
     if expected_stealth != stealth_address {
-        return Err( RustAcademyError::StealthAddressMismatch);
+        return Err(RustAcademyError::StealthAddressMismatch);
     }
 
-    // Mark spent before transfer (checks-effects-interactions).
-    entry.status = EscrowStatus::Spent;
-    put_stealth_escrow(env, &stealth_address, &entry);
+    // Validate balance invariant before withdrawal
+    let balance_before = get_stealth_total_balance(env);
 
     // Transfer funds to recipient.
     let token_client = token::Client::new(env, &entry.token);
@@ -232,6 +260,17 @@ pub fn stealth_withdraw(
         &recipient,
         &entry.amount_paid,
     );
+
+    // Verify balance invariant after withdrawal
+    // The contract should have released `entry.amount_paid` tokens
+    require_stealth_balance_invariant(
+        env,
+        balance_before.saturating_sub(entry.amount_paid),
+        false,
+    )?;
+
+    // Cleanup terminal entry after successful withdrawal (INV-S-4)
+    remove_stealth_escrow(env, &stealth_address);
 
     events::publish_stealth_withdrawn(
         env,
@@ -271,19 +310,25 @@ pub fn get_stealth_status(env: &Env, stealth_address: &BytesN<32>) -> Option<Esc
 /// # Errors
 /// - [`StealthEscrowNotFound`](RustAcademyError::StealthEscrowNotFound) – no entry for the address.
 /// - [`AlreadySpent`](RustAcademyError::AlreadySpent) – entry is not in a terminal state.
+/// - [`InternalError`] – balance invariant check fails for stale entry.
 pub fn cleanup_stealth_escrow(
     env: &Env,
     stealth_address: BytesN<32>,
-) -> Result<(),  RustAcademyError> {
+) -> Result<(), RustAcademyError> {
     let entry = get_stealth_escrow(env, &stealth_address)
-        .ok_or( RustAcademyError::StealthEscrowNotFound)?;
+        .ok_or(RustAcademyError::StealthEscrowNotFound)?;
 
     match entry.status {
         EscrowStatus::Spent | EscrowStatus::Refunded => {
+            // Validate no orphaned balance before cleanup (INV-S-1)
+            if entry.amount_paid != 0 {
+                // This should never happen - indicates corrupted state
+                return Err(RustAcademyError::InternalError);
+            }
             remove_stealth_escrow(env, &stealth_address);
             events::publish_stealth_escrow_cleaned(env, stealth_address);
             Ok(())
         }
-        _ => Err( RustAcademyError::AlreadySpent),
+        _ => Err(RustAcademyError::AlreadySpent),
     }
 }
