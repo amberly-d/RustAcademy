@@ -288,9 +288,25 @@ pub struct PerAssetFeeConfig {
     /// 0 = no arbiter split — entire fee goes to the collector.
     /// Example: fee_bps=200 (2%), arbiter_bps=2000 (20%) → arbiter gets 0.4%, collector 1.6%.
     pub arbiter_bps: u32,
+    /// Explicit arbiter payout share, using a prescaled numerator / denominator pair.
+    pub arbiter_fee: FeeRatio,
+    /// Explicit platform payout share, using a prescaled numerator / denominator pair.
+    pub platform_fee: FeeRatio,
+    /// Explicit collector payout share, using a prescaled numerator / denominator pair.
+    pub collector_fee: FeeRatio,
     /// Storage schema version for this record. Used during migrations to detect
     /// legacy records that need field upgrades.
     pub schema_version: u32,
+}
+
+impl PerAssetFeeConfig {
+    /// Validate the configuration before persisting it.
+    pub fn validate(&self) -> Result<(), RustAcademyError> {
+        self.arbiter_fee.validate()?;
+        self.platform_fee.validate()?;
+        self.collector_fee.validate()?;
+        Ok(())
+    }
 }
 
 /// Storage schema version for oracle fee configuration.

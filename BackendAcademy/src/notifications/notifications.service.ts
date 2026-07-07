@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Notification } from './interfaces/notifications.interface';
 import { CreateNotificationDto } from './dto/create-notification.dto';
+import { NotificationPreferences } from './interfaces/preferences.interface';
+import { UpdateNotificationPreferencesDto } from './dto/update-preferences.dto';
 
 @Injectable()
 export class NotificationsService {
   private notifications: Notification[] = [];
+  private preferences: Map<string, NotificationPreferences> = new Map();
 
   create(createNotificationDto: CreateNotificationDto): Notification {
     const newNotification: Notification = {
@@ -23,5 +26,27 @@ export class NotificationsService {
 
   findByUserId(userId: string): Notification[] {
     return this.notifications.filter(n => n.userId === userId);
+  }
+
+  upsertPreferences(userId: string, updateDto: UpdateNotificationPreferencesDto): NotificationPreferences {
+    const existing = this.preferences.get(userId) || {
+      userId,
+      email_alerts: false,
+      push_notifications: false,
+      marketing_updates: false,
+    };
+
+    const updated = { ...existing, ...updateDto };
+    this.preferences.set(userId, updated);
+    return updated;
+  }
+
+  getPreferences(userId: string): NotificationPreferences {
+    return this.preferences.get(userId) || {
+      userId,
+      email_alerts: false,
+      push_notifications: false,
+      marketing_updates: false,
+    };
   }
 }

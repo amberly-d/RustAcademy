@@ -27,6 +27,20 @@ export class UpdateCourseDto {
   duration?: number;
 
   @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categories?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   prerequisites?: string[];

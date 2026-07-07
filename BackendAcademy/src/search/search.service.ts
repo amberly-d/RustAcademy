@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { CourseEntity } from '../courses/course.entity';
+import { CourseService } from '../courses/course.service';
+import { SearchCoursesQueryDto } from './dto/search-courses-query.dto';
 import { SearchQueryDto } from './dto/search-query.dto';
 import {
-  CourseSearchHit,
   PostSearchHit,
   SearchResults,
   UserSearchHit,
@@ -12,6 +14,8 @@ export class SearchService {
   /** Defensive cap on page size. */
   private static readonly MAX_LIMIT = 50;
   private static readonly DEFAULT_LIMIT = 10;
+
+  constructor(private readonly courseService: CourseService) {}
 
   /**
    * In-memory fixture set. Replace with a real SearchRepository backed by
@@ -28,34 +32,6 @@ export class SearchService {
     { id: 'user-0006', username: 'rustacean', displayName: 'Rustacean' },
     { id: 'user-0007', username: 'memorieslock', displayName: 'MemoriesLock' },
     { id: 'user-0008', username: 'rust-newbie', displayName: 'Rust Newbie' },
-  ];
-
-  private readonly courses: CourseSearchHit[] = [
-    {
-      id: 'course-001',
-      title: 'Rust Fundamentals',
-      description: 'Learn ownership, borrowing, and lifetimes.',
-    },
-    {
-      id: 'course-002',
-      title: 'Stellar Smart Contracts',
-      description: 'Build Soroban contracts from scratch.',
-    },
-    {
-      id: 'course-003',
-      title: 'Advanced Rust',
-      description: 'Async, traits, and macros deep-dive.',
-    },
-    {
-      id: 'course-004',
-      title: 'Stellar Payments',
-      description: 'Send and receive XLM/USDC using Horizon.',
-    },
-    {
-      id: 'course-005',
-      title: 'Rust for Web3',
-      description: 'Blockchain, NFTs, and on-chain Rust.',
-    },
   ];
 
   private readonly posts: PostSearchHit[] = [
@@ -141,13 +117,51 @@ export class SearchService {
     );
   }
 
-  searchCourses(query: SearchQueryDto): SearchResults<CourseSearchHit> {
+  async searchCourses(
+    query: SearchCoursesQueryDto,
+  ): Promise<SearchResults<CourseEntity>> {
+    const courses = await this.courseService.findAll();
+    const tags = this.normalize([...(query.tag ?? []), ...(query.tags ?? [])]);
+    const categories = this.normalize([
+      ...(query.category ?? []),
+      ...(query.categories ?? []),
+    ]);
+    const match = query.match ?? 'any';
+    const filteredCourses =
+      tags.length === 0 && categories.length === 0
+        ? courses
+        : courses.filter((course) => {
+            const courseTags = this.normalize(course.tags);
+            const courseCategories = this.normalize([
+              course.category,
+              ...(course.categories ?? []),
+            ]);
+            const checks = [
+              ...tags.map((tag) => courseTags.includes(tag)),
+              ...categories.map((category) =>
+                courseCategories.includes(category),
+              ),
+            ];
+
+            return match === 'all'
+              ? checks.every(Boolean)
+              : checks.some(Boolean);
+          });
+
     return this.paginate(
-      this.courses,
+      filteredCourses,
       query.q,
       query.limit,
       query.offset,
-      (c) => `${c.id} ${c.title} ${c.description}`,
+      (c) =>
+        [
+          c.id,
+          c.title,
+          c.description,
+          c.category,
+          ...(c.categories ?? []),
+          ...(c.tags ?? []),
+        ].join(' '),
     );
   }
 
@@ -159,5 +173,11 @@ export class SearchService {
       query.offset,
       (p) => `${p.id} ${p.title} ${p.body}`,
     );
+  }
+
+  private normalize(values?: string[]): string[] {
+    return (values ?? [])
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean);
   }
 }

@@ -84,6 +84,14 @@ export class TutorProfileController {
     return this.tutorService.rate(id, dto);
   }
 
+  @Get(':id/reviews')
+  async getReviews(@Param('id', ParseUUIDPipe) id: string) {
+    return this.tutorService.getReviews(id);
+  }
+
+  @Get(':id/reputation')
+  async getReputation(@Param('id', ParseUUIDPipe) id: string) {
+    return this.tutorService.getReputation(id);
   // ---- Verification lifecycle endpoints --------------------------------
 
   /**

@@ -1,12 +1,13 @@
 import { Controller, Get, Query } from '@nestjs/common';
+import { SearchCoursesQueryDto } from './dto/search-courses-query.dto';
 import { SearchService } from './search.service';
 import { SearchQueryDto } from './dto/search-query.dto';
 import {
-  CourseSearchHit,
   PostSearchHit,
   SearchResults,
   UserSearchHit,
 } from './interfaces/search.interface';
+import { CourseEntity } from '../courses/course.entity';
 
 /**
  * Multi-resource search controller.
@@ -29,10 +30,12 @@ export class SearchController {
 
   /**
    * GET /search/courses?q=<query>&limit=&offset=
-   * Substring search across courseId, title, description.
+   * Substring search across courseId, title, description, tags, and categories.
    */
   @Get('courses')
-  searchCourses(@Query() query: SearchQueryDto): SearchResults<CourseSearchHit> {
+  searchCourses(
+    @Query() query: SearchCoursesQueryDto,
+  ): Promise<SearchResults<CourseEntity>> {
     return this.searchService.searchCourses(query);
   }
 

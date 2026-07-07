@@ -32,9 +32,8 @@ export class CourseService {
     private readonly courseRepo: Repository<CourseEntity>,
     @InjectRepository(CourseRevisionEntity)
     private readonly revisionRepo: Repository<CourseRevisionEntity>,
+    private readonly rewardsService: RewardsService,
   ) {}
-
-  constructor(private readonly rewardsService: RewardsService) {}
 
   async create(dto: CreateCourseDto): Promise<CourseEntity> {
     const course = this.courseRepo.create({
@@ -71,6 +70,7 @@ export class CourseService {
     course.version = previousVersion + 1;
     course.updatedAt = new Date();
     Object.assign(course, dto);
+    this.syncCourseTaxonomy(course, dto);
     const saved = await this.courseRepo.save(course);
 
     await this.appendRevision(saved, 'update', {
@@ -170,6 +170,9 @@ export class CourseService {
     course.order = target.order;
     course.learningPathId = target.learningPathId;
     course.duration = target.duration;
+    course.category = target.category;
+    course.categories = [...(target.categories ?? [])];
+    course.tags = [...(target.tags ?? [])];
     course.prerequisites = [...target.prerequisites];
     course.skills = [...target.skills];
     course.xpReward = target.xpReward;
@@ -229,6 +232,9 @@ export class CourseService {
         order: course.order,
         learningPathId: course.learningPathId,
         duration: course.duration,
+        category: course.category,
+        categories: [...(course.categories ?? [])],
+        tags: [...(course.tags ?? [])],
         prerequisites: [...(course.prerequisites ?? [])],
         skills: [...(course.skills ?? [])],
         xpReward: course.xpReward,
@@ -249,15 +255,15 @@ export class CourseService {
   }
 
   async completeCourse(id: string, userId: string) {
-    const course = this.courses.get(id);
+    const course = await this.courseRepo.findOne({ where: { id } });
     if (!course) {
       throw new NotFoundException(`Course with ID ${id} not found.`);
     }
-    
+
     // Reward the user for completing the course
     const xpReward = course.xpReward || 50; // Default to 50 XP if not specified
     const result = this.rewardsService.recordActivity(userId, new Date(), xpReward);
-    
+
     return {
       message: 'Course completed successfully',
       courseId: id,
@@ -265,5 +271,17 @@ export class CourseService {
       xpAwarded: xpReward,
       progression: result,
     };
+  }
+
+  private syncCourseTaxonomy(
+    course: CourseEntity,
+    dto: Pick<UpdateCourseDto, 'category' | 'categories'>,
+  ): void {
+    if (dto.category && !dto.categories) {
+      course.categories = [dto.category];
+    }
+    if (dto.categories?.length && !dto.category) {
+      course.category = dto.categories[0];
+    }
   }
 }

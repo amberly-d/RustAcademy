@@ -1,6 +1,9 @@
-import { IsNumber, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUUID, Min, Max } from 'class-validator';
 
 export class RateTutorDto {
+  @IsUUID()
+  raterUserId: string;
+
   @IsNumber()
   @Min(1)
   @Max(5)

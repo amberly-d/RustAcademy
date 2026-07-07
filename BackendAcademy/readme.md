@@ -89,6 +89,7 @@ When integrating a frontend built with **shadcn/ui**, backend endpoints should p
   ]
 }
 ```
+```
 
 ---
 

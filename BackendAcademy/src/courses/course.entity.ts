@@ -42,6 +42,15 @@ export class CourseEntity {
   @Column({ type: 'int' })
   duration: number;
 
+  @Column({ type: 'varchar', length: 120, default: 'general' })
+  category: string;
+
+  @Column({ type: 'text', array: true, default: () => "'{}'" })
+  categories: string[];
+
+  @Column({ type: 'text', array: true, default: () => "'{}'" })
+  tags: string[];
+
   @Column({ type: 'text', array: true, default: () => "'{}'" })
   prerequisites: string[];
 
@@ -93,6 +102,9 @@ export class CourseEntity {
     this.createdAt = this.createdAt || new Date();
     this.updatedAt = this.updatedAt || new Date();
     this.isActive = this.isActive ?? true;
+    this.category = this.category || this.categories?.[0] || 'general';
+    this.categories = this.categories || [this.category];
+    this.tags = this.tags || [];
     this.prerequisites = this.prerequisites || [];
     this.skills = this.skills || [];
     // Object.assign above already copies version; default to 1 when absent.

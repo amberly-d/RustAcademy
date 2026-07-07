@@ -10,5 +10,6 @@ export { ITutorProfile } from './interfaces/tutor-profile.interface';
 export { CreateTutorProfileDto } from './dto/create-tutor-profile.dto';
 export { UpdateTutorProfileDto } from './dto/update-tutor-profile.dto';
 export { RateTutorDto } from './dto/rate-tutor.dto';
+export { Review, ReputationDetails } from './interfaces/review.interface';
 export { VerifyTutorDto } from './dto/verify-tutor.dto';
 export { RequestVerificationDto } from './dto/request-verification.dto';

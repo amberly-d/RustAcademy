@@ -43,6 +43,9 @@ export class CourseRevisionEntity {
     order: number;
     learningPathId: string;
     duration: number;
+    category: string;
+    categories: string[];
+    tags: string[];
     prerequisites: string[];
     skills: string[];
     xpReward: number;
