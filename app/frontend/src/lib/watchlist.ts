@@ -6,27 +6,22 @@ export type WatchlistItem = {
 
 export const WATCHLIST_STORAGE_KEY = " RustAcademy-marketplace-watchlist";
 
-export function getWatchlistFromStorage(): WatchlistItem[] {
+export function serializeWatchlist(watchlist: WatchlistItem[]): string {
+  return JSON.stringify(watchlist);
+}
+
+export function deserializeWatchlist(stored: string): WatchlistItem[] {
   try {
-    const stored = localStorage.getItem(WATCHLIST_STORAGE_KEY);
-    if (!stored) return [];
-    
     const parsed: { id: string; username: string; addedAt: string }[] = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    
     return parsed.map((item) => ({
       ...item,
       addedAt: new Date(item.addedAt),
     }));
   } catch (error) {
-    console.error("Failed to load watchlist from localStorage:", error);
+    console.error("Failed to parse watchlist:", error);
     return [];
-  }
-}
-
-export function saveWatchlistToStorage(watchlist: WatchlistItem[]): void {
-  try {
-    localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify(watchlist));
-  } catch (error) {
-    console.error("Failed to save watchlist to localStorage:", error);
   }
 }
 

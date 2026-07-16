@@ -47,16 +47,18 @@ export function UsernameCard({
   onBid,
   onViewDetails,
 }: UsernameCardProps) {
-  const { isInWatchlist, toggleWatchlist } = useWatchlist();
+  const { isInWatchlist, toggleWatchlist, isHydrated } = useWatchlist();
   const catColor = CATEGORY_COLORS[listing.category];
   const catLabel = CATEGORY_LABELS[listing.category];
   const countdown = formatCountdown(listing.endsAt);
   const isUrgent = listing.endsAt.getTime() - Date.now() < 1000 * 60 * 90;
-  const isWatched = isInWatchlist(listing.id);
+  const isWatched = isHydrated ? isInWatchlist(listing.id) : false;
 
   const handleWatchlistClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    toggleWatchlist(listing.id, listing.username);
+    if (isHydrated) {
+      toggleWatchlist(listing.id, listing.username);
+    }
   };
 
   return (

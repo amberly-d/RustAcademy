@@ -478,7 +478,7 @@ function MarketplacePageContent() {
 
 export default function MarketplacePage() {
   return (
-    <WatchlistProvider>
+    <WatchlistProvider userId="demo_user">
       <MarketplacePageContent />
     </WatchlistProvider>
   );
