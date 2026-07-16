@@ -1,15 +1,17 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { UsernameCard } from "@/components/UsernameCard";
 import { ListingDetailModal } from "@/components/ListingDetailModal";
-import { fetchListings, MarketplaceListing } from "@/hooks/marketplaceApi";
-import { applyBidUpdate, applyLocalBid } from "@/lib/bidUpdates";
+import type { MarketplaceListing } from "@/hooks/marketplaceApi";
+import { useMarketplaceApi } from "@/hooks/MarketplaceApiContext";
+import { useRealtimeApi } from "@/hooks/RealtimeApiContext";
 import { useWatchlist } from "@/contexts/WatchlistContext";
-import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import Link from "next/link";
 import { WatchlistProvider } from "@/contexts/WatchlistContext";
+import { MarketplaceApiProvider } from "@/hooks/MarketplaceApiContext";
+import { RealtimeApiProvider } from "@/hooks/RealtimeApiContext";
 
 const BidModal = dynamic(
   () => import("@/components/BidModal").then((mod) => mod.BidModal),
@@ -95,67 +97,73 @@ function MarketplacePageContent() {
     () => listings.find((l) => l.id === detailListingId) ?? null,
     [listings, detailListingId],
   );
+  const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const { watchlist, isInWatchlist, toggleWatchlist } = useWatchlist();
-  const {
-    isConnected,
-    lastUpdate,
-    subscribeToListing,
-    unsubscribeFromListing,
-    onBidUpdate,
-  } = useRealtimeUpdates();
+
+  // Consume providers from context — no direct imports of concrete providers
+  const marketplaceApi = useMarketplaceApi();
+  const realtimeApi = useRealtimeApi();
+
+  // Stable connection-status derived from the provider
+  const isConnected = realtimeApi.isConnected;
 
   useEffect(() => {
-    let cancelled = false;
-    fetchListings().then((data) => {
-      if (cancelled) return;
+    marketplaceApi.fetchListings().then((data) => {
       setListings(data);
       setLoading(false);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [marketplaceApi]);
 
   // Latest listings, readable from effects without being an effect dependency.
   const listingsRef = useRef<MarketplaceListing[]>([]);
   useEffect(() => {
-    listingsRef.current = listings;
-  }, [listings]);
-
-  // Subscribe to real-time updates for all listings. Keyed on the id set —
-  // not the listings array — so every bid update doesn't churn a full
-  // unsubscribe/resubscribe cycle (a window where updates get dropped).
-  const listingIdsKey = listings.map((l) => l.id).join(",");
-  useEffect(() => {
-    if (!listingIdsKey) return;
-    const ids = listingIdsKey.split(",");
-    ids.forEach((id) =>
-      subscribeToListing(
-        id,
-        listingsRef.current.find((l) => l.id === id)?.currentBid,
-      ),
-    );
-    return () => {
-      ids.forEach((id) => unsubscribeFromListing(id));
-    };
-  }, [listingIdsKey, subscribeToListing, unsubscribeFromListing]);
+    if (listings.length > 0) {
+      listings.forEach((listing) =>
+        realtimeApi.subscribeToListing(listing.id),
+      );
+      return () => {
+        listings.forEach((listing) =>
+          realtimeApi.unsubscribeFromListing(listing.id),
+        );
+      };
+    }
+  }, [listings, realtimeApi]);
 
   // Handle real-time bid updates. applyBidUpdate discards stale, duplicate,
   // and out-of-order deliveries so bidCount only moves for genuinely new bids.
   useEffect(() => {
-    const unsubscribe = onBidUpdate((update) => {
-      setListings((prev) => applyBidUpdate(prev, update));
+    const unsubscribe = realtimeApi.onBidUpdate((update) => {
+      setLastUpdate(update.timestamp);
+      setListings((prev) =>
+        prev.map((listing) =>
+          listing.id === update.listingId
+            ? {
+                ...listing,
+                currentBid: Math.max(listing.currentBid, update.newBid),
+                bidCount: listing.bidCount + 1,
+              }
+            : listing,
+        ),
+      );
     });
 
     return unsubscribe;
-  }, [onBidUpdate]);
+  }, [realtimeApi]);
 
-  function handleBidSuccess(username: string, amount: number) {
-    // Same guard as realtime updates: the websocket echo of this bid won't
-    // double-count it, and a concurrent higher bid can't be regressed.
-    setListings((prev) => applyLocalBid(prev, username, amount));
-  }
+  const handleBidSuccess = useCallback(
+    (username: string, amount: number) => {
+      setListings((prev) =>
+        prev.map((l) =>
+          l.username === username
+            ? { ...l, currentBid: amount, bidCount: l.bidCount + 1 }
+            : l,
+        ),
+      );
+    },
+    [],
+  );
 
   function handleOpenBid(listing: MarketplaceListing) {
     setDetailListingId(null);
@@ -165,23 +173,19 @@ function MarketplacePageContent() {
   const filtered = useMemo(() => {
     let result = listings;
 
-    // Filter by watchlist if enabled
     if (showWatchlistOnly) {
       result = result.filter((listing) => isInWatchlist(listing.id));
     }
 
-    // Filter by category
     if (activeCategory !== "all") {
       result = result.filter((l) => l.category === activeCategory);
     }
 
-    // Filter by search
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       result = result.filter((l) => l.username.includes(q));
     }
 
-    // Sort results
     switch (sortKey) {
       case "ending":
         result = [...result].sort(
@@ -493,7 +497,12 @@ function MarketplacePageContent() {
 export default function MarketplacePage() {
   return (
     <WatchlistProvider>
-      <MarketplacePageContent />
+      {/* Both API providers wrap the content so all children can use the hooks */}
+      <MarketplaceApiProvider>
+        <RealtimeApiProvider>
+          <MarketplacePageContent />
+        </RealtimeApiProvider>
+      </MarketplaceApiProvider>
     </WatchlistProvider>
   );
 }

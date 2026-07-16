@@ -20,6 +20,9 @@ type NotificationCenterContextValue = {
   unreadCount: number;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
+  /** True once localStorage has been read on the client. Use this to suppress
+   *  hydration mismatches in any component that renders unread-count badges. */
+  hasHydrated: boolean;
 };
 
 const NotificationCenterContext =
@@ -56,9 +59,16 @@ export function NotificationCenterProvider({
   const [notifications, setNotifications] = useState<StoredNotification[]>(
     sortNotifications(INITIAL_NOTIFICATIONS),
   );
+  // hasHydrated starts false on both server and first client render so the
+  // initial HTML matches.  It is flipped to true in a useEffect (client-only),
+  // after which localStorage has been read and badge counts are accurate.
   const [hasHydrated, setHasHydrated] = useState(false);
 
+  // Read persisted state from localStorage — client only.
   useEffect(() => {
+    const isClient = typeof window !== "undefined";
+    if (!isClient) return;
+
     try {
       const storedValue = window.localStorage.getItem(NOTIFICATION_STORAGE_KEY);
 
@@ -73,15 +83,20 @@ export function NotificationCenterProvider({
     }
   }, []);
 
+  // Persist to localStorage whenever notifications change after hydration.
   useEffect(() => {
     if (!hasHydrated) {
       return;
     }
 
-    window.localStorage.setItem(
-      NOTIFICATION_STORAGE_KEY,
-      JSON.stringify(notifications),
-    );
+    try {
+      window.localStorage.setItem(
+        NOTIFICATION_STORAGE_KEY,
+        JSON.stringify(notifications),
+      );
+    } catch (error) {
+      console.error("Unable to persist notifications", error);
+    }
   }, [hasHydrated, notifications]);
 
   const unreadCount = useMemo(
@@ -95,6 +110,7 @@ export function NotificationCenterProvider({
     () => ({
       notifications,
       unreadCount,
+      hasHydrated,
       markAsRead: (id: string) => {
         setNotifications((currentNotifications) =>
           sortNotifications(
@@ -124,7 +140,7 @@ export function NotificationCenterProvider({
         );
       },
     }),
-    [notifications, unreadCount],
+    [notifications, unreadCount, hasHydrated],
   );
 
   return (
